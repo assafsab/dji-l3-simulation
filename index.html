@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>סימולציית DJI Zenmuse L3</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#0f1923;color:#ecf0f1;min-height:100vh;display:flex;justify-content:center;align-items:center}
+.gate{background:#1e3044;border:1px solid #2c3e50;border-radius:16px;padding:40px;max-width:400px;width:90%;text-align:center}
+.gate h1{color:#00b4d8;font-size:1.3em;margin-bottom:8px}
+.gate p{color:#95a5a6;font-size:.85em;margin-bottom:24px}
+.gate input{width:100%;padding:12px;background:#1a2736;color:#ecf0f1;border:2px solid #2c3e50;border-radius:8px;font-size:1.1em;text-align:center;letter-spacing:4px;font-family:inherit;margin-bottom:12px}
+.gate input:focus{outline:none;border-color:#00b4d8}
+.gate button{width:100%;padding:12px;background:#00b4d8;color:#fff;border:none;border-radius:8px;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit}
+.gate button:hover{opacity:.85}
+.err{color:#e74c3c;font-size:.85em;margin-top:8px;display:none}
+#app{display:none;width:100%;height:100vh}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <h1>סימולציית DJI Zenmuse L3</h1>
+  <p>ניתוח יכולות זיהוי מטרות ביטחוניות</p>
+  <input type="password" id="pw" placeholder="הזן סיסמה" autofocus>
+  <button id="btn">כניסה</button>
+  <div class="err" id="err">סיסמה שגויה</div>
+</div>
+<iframe id="app" src="about:blank" frameborder="0" allowfullscreen></iframe>
+<script>
+var H='8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
+function sha256(s){var e=new TextEncoder();return crypto.subtle.digest('SHA-256',e.encode(s)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join('');});}
+function tryLogin(){var p=document.getElementById('pw').value;
+  sha256(p).then(function(h){
+    if(h===H){document.getElementById('gate').style.display='none';var f=document.getElementById('app');f.style.display='block';f.src='app.html';}
+    else{document.getElementById('err').style.display='block';document.getElementById('pw').value='';document.getElementById('pw').focus();}
+  });
+}
+document.getElementById('btn').addEventListener('click',tryLogin);
+document.getElementById('pw').addEventListener('keydown',function(e){if(e.key==='Enter')tryLogin();});
+</script>
+</body>
+</html>

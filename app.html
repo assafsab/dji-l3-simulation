@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>סימולציית DJI Zenmuse L3 — זיהוי מטרות ביטחוניות v2</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#0f1923;--bg2:#1a2736;--card:#1e3044;--card2:#243a52;
+  --blue:#00b4d8;--green:#2ecc71;--orange:#f39c12;--red:#e74c3c;--purple:#9b59b6;
+  --txt:#ecf0f1;--txt2:#95a5a6;--txt3:#7f8c8d;--brd:#2c3e50;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--txt);direction:rtl;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#0a1628,#1a2f4a);padding:18px 28px;border-bottom:2px solid var(--blue);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.hdr h1{font-size:1.4em;color:var(--blue)}.hdr .sub{color:var(--txt2);font-size:.85em}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.bdg{padding:3px 9px;border-radius:10px;font-size:.7em;font-weight:600;color:#fff}
+.bdg-s{background:#3498db}.bdg-c{background:var(--green)}.bdg-e{background:var(--orange);color:#000}.bdg-r{background:#9b59b6}
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--brd);overflow-x:auto}
+.tab{padding:11px 20px;cursor:pointer;border:none;background:none;color:var(--txt2);font-size:.85em;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit;transition:.2s}
+.tab:hover{color:var(--txt);background:var(--card)}.tab.on{color:var(--blue);border-bottom-color:var(--blue);background:var(--card)}
+.main{padding:18px;max-width:1600px;margin:0 auto}
+.tc{display:none}.tc.on{display:block}
+.card{background:var(--card);border-radius:10px;padding:18px;margin-bottom:16px;border:1px solid var(--brd)}
+.ct{font-size:1.05em;color:var(--blue);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.tag{font-size:.65em;padding:2px 5px;border-radius:4px;font-weight:normal;color:#fff}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:1100px){.g3{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.cg{margin-bottom:13px}
+.cg label{display:block;color:var(--txt2);font-size:.82em;margin-bottom:4px}
+.vd{color:var(--blue);font-weight:700;font-size:1.05em;float:left;direction:ltr}
+input[type=range]{width:100%;-webkit-appearance:none;height:5px;background:var(--brd);border-radius:3px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:var(--blue);border-radius:50%;cursor:pointer}
+select,input[type=number],input[type=text]{width:100%;padding:7px 10px;background:var(--bg2);color:var(--txt);border:1px solid var(--brd);border-radius:5px;font-size:.85em;font-family:inherit;direction:rtl}
+input[type=number]{direction:ltr;text-align:right}
+.kpi{background:var(--bg2);border-radius:8px;padding:13px;text-align:center;border:1px solid var(--brd);transition:.3s}
+.kpi:hover{border-color:var(--blue)}
+.kv{font-size:1.8em;font-weight:800;direction:ltr;display:inline-block}
+.ku{font-size:.45em;color:var(--txt2);font-weight:normal}
+.kl{color:var(--txt2);font-size:.75em;margin-top:4px}
+.kt{font-size:.55em;margin-top:2px}
+.kpi-g .kv{color:var(--green)}.kpi-o .kv{color:var(--orange)}.kpi-r .kv{color:var(--red)}.kpi-b .kv{color:var(--blue)}
+.mt{width:100%;border-collapse:collapse;font-size:.82em}
+.mt th,.mt td{padding:8px 10px;border:1px solid var(--brd);text-align:center}
+.mt th{background:var(--bg2);color:var(--blue);font-weight:600}
+.mt tr:nth-child(even){background:rgba(255,255,255,.02)}
+.dh{color:var(--green);font-weight:700}.dm{color:var(--orange);font-weight:700}.dl{color:var(--red);font-weight:700}
+.cc{position:relative;height:340px;width:100%}
+.sc{background:var(--bg2);border-radius:8px;padding:13px;border:2px solid var(--brd);cursor:pointer;transition:.3s}
+.sc:hover,.sc.on{border-color:var(--blue);background:var(--card2)}
+.sc h4{color:var(--blue);margin-bottom:4px;font-size:.95em}.sc p{color:var(--txt2);font-size:.78em}
+.pre{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.pb{padding:7px 14px;border:1px solid var(--brd);background:var(--bg2);color:var(--txt);border-radius:5px;cursor:pointer;font-size:.82em;font-family:inherit;transition:.2s}
+.pb:hover{border-color:var(--blue);background:var(--card)}.pb.on{border-color:var(--blue);background:var(--blue);color:#fff}
+.vrd{padding:10px 18px;border-radius:7px;font-weight:700;text-align:center;margin-top:8px;font-size:.9em}
+.vg{background:rgba(46,204,113,.12);color:var(--green);border:1px solid var(--green)}
+.vp{background:rgba(243,156,18,.12);color:var(--orange);border:1px solid var(--orange)}
+.vb{background:rgba(231,76,60,.12);color:var(--red);border:1px solid var(--red)}
+.help{background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:.82em;color:var(--txt2);line-height:1.7}
+.help b{color:var(--blue)}
+.help ul{margin:6px 16px 0;list-style:disc}
+.spec-edit{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:900px){.spec-edit{grid-template-columns:1fr 1fr}}
+.spec-edit label{font-size:.78em;color:var(--txt2)}
+.spec-edit input{margin-top:3px}
+.upload-zone{border:2px dashed var(--brd);border-radius:8px;padding:30px;text-align:center;cursor:pointer;transition:.3s;color:var(--txt3)}
+.upload-zone:hover{border-color:var(--blue);color:var(--txt)}
+.upload-zone input{display:none}
+details{margin-top:8px}
+details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85em}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <h1>סימולציית ביצועים — DJI Zenmuse L3</h1>
+    <div class="sub">ניתוח יכולות זיהוי מטרות ביטחוניות | מבוסס מפרט + מחקרים + מודלים פיזיקליים</div>
+  </div>
+  <div class="badges">
+    <span class="bdg bdg-s">📋 מפרט יצרן</span>
+    <span class="bdg bdg-c">🔢 חישוב פיזיקלי</span>
+    <span class="bdg bdg-e">⚠️ הערכה</span>
+    <span class="bdg bdg-r">📚 מחקר</span>
+  </div>
+</div>
+
+<div class="tabs" id="tabbar"></div>
+<div class="main">
+
+<!-- TAB: RANGE -->
+<div id="t-range" class="tc on">
+  <div class="help" id="help-range"></div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">פרמטרי סימולציה</div>
+      <div class="cg"><label>תדר פולסים (PRR) <span class="vd" id="v-prr">100 kHz</span></label>
+        <input type="range" id="s-prr" min="0" max="3" step="1" value="0" oninput="upRange()">
+        <div style="display:flex;justify-content:space-between;font-size:.65em;color:var(--txt3)"><span>100</span><span>350</span><span>1,000</span><span>2,000 kHz</span></div></div>
+      <div class="cg"><label>תנאי מזג אוויר</label>
+        <select id="s-wx" onchange="upRange()">
+          <option value="clear">בהיר (ראות 23 ק"מ)</option><option value="haze_light">אובך קל (10 ק"מ)</option>
+          <option value="haze">אובך (4 ק"מ)</option><option value="fog_light">ערפל קל (2 ק"מ)</option>
+          <option value="fog">ערפל בינוני (1 ק"מ)</option><option value="rain_light">גשם קל (6 ק"מ)</option>
+          <option value="rain">גשם בינוני (3 ק"מ)</option><option value="rain_heavy">גשם כבד (2 ק"מ)</option>
+          <option value="dust">אבק/חמסין (3 ק"מ)</option>
+        </select></div>
+      <div class="cg"><label>גובה טיסה (AGL) <span class="vd" id="v-alt">50 מ'</span></label>
+        <input type="range" id="s-alt" min="10" max="200" step="1" value="50" oninput="upRange()"></div>
+      <div style="margin-top:14px"><div class="ct" style="font-size:.85em">פריסטים</div>
+        <div class="pre">
+          <button class="pb" onclick="setP('ultra',this)">10-20 מ' — מטענים</button>
+          <button class="pb" onclick="setP('low',this)">30-50 מ' — חיפוש ממוקד</button>
+          <button class="pb on" onclick="setP('patrol',this)">50-80 מ' — סיור</button>
+          <button class="pb" onclick="setP('high',this)">100-200 מ' — סריקה</button>
+        </div></div>
+    </div>
+    <div class="card">
+      <div class="ct">טווח גילוי לפי סוג מטרה <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="cc"><canvas id="chRange"></canvas></div>
+    </div>
+  </div>
+  <div class="g4" id="kpi-range"></div>
+  <div class="card" id="alt-insight"></div>
+</div>
+
+<!-- TAB: DENSITY -->
+<div id="t-density" class="tc">
+  <div class="help" id="help-density"></div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">פרמטרי טיסה וסריקה</div>
+      <div class="cg"><label>גובה טיסה <span class="vd" id="v-da">50 מ'</span></label>
+        <input type="range" id="s-da" min="10" max="200" step="1" value="50" oninput="upDens()"></div>
+      <div class="cg"><label>מהירות טיסה <span class="vd" id="v-ds">8 מ'/ש</span></label>
+        <input type="range" id="s-ds" min="1" max="25" step="1" value="8" oninput="upDens()"></div>
+      <div class="cg"><label>תדר פולסים <span class="vd" id="v-dp">100 kHz</span></label>
+        <input type="range" id="s-dp" min="0" max="3" step="1" value="0" oninput="upDens()"></div>
+      <div class="cg"><label>מצב סריקה</label>
+        <select id="s-dscan" onchange="upDens()">
+          <option value="linear">Linear (80x3)</option><option value="star">Star-Shaped (80x80)</option>
+          <option value="nonrep" selected>Non-Repetitive (80x80)</option></select></div>
+      <div class="cg"><label>חפיפה <span class="vd" id="v-do">30%</span></label>
+        <input type="range" id="s-do" min="0" max="70" step="5" value="30" oninput="upDens()"></div>
+    </div>
+    <div class="card">
+      <div class="ct">צפיפות נקודות לפי גובה <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="cc"><canvas id="chDens"></canvas></div>
+    </div>
+  </div>
+  <div class="g4" id="kpi-dens"></div>
+  <div class="card"><div class="ct">סף זיהוי — האם הצפיפות מספיקה?</div>
+    <table class="mt"><thead><tr><th>מטרה</th><th>גודל</th><th>נקודות נדרשות</th><th>צפיפות נדרשת</th><th>צפיפות נוכחית</th><th>סטטוס</th></tr></thead>
+    <tbody id="tb-dthr"></tbody></table></div>
+</div>
+
+<!-- TAB: TARGETS -->
+<div id="t-targets" class="tc">
+  <div class="help" id="help-targets"></div>
+  <div class="card">
+    <div class="ct">מטריצת זיהוי — 5 סוגי מטרות x גובה טיסה</div>
+    <table class="mt"><thead><tr>
+      <th rowspan="2">מטרה</th><th rowspan="2">רפלקט.</th><th rowspan="2">גודל</th><th rowspan="2">גובה מקרקע</th>
+      <th colspan="3">50 מ'</th><th colspan="3">120 מ'</th><th rowspan="2">מקור / הערות</th>
+    </tr><tr><th>נק'</th><th>ציון</th><th>הערכה</th><th>נק'</th><th>ציון</th><th>הערכה</th>
+    </tr></thead><tbody id="tb-mat"></tbody></table>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">רדאר יכולות <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="cc" style="height:380px;max-width:480px;margin:0 auto"><canvas id="chRadar"></canvas></div></div>
+    <div class="card" id="research-box"></div>
+  </div>
+</div>
+
+<!-- TAB: WEATHER -->
+<div id="t-weather" class="tc">
+  <div class="help" id="help-weather"></div>
+  <div class="g2">
+    <div class="card"><div class="ct">טווח לפי מזג אוויר <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="cc"><canvas id="chWxR"></canvas></div></div>
+    <div class="card"><div class="ct">שקיפות לפי מרחק <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="cc"><canvas id="chTrans"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">טבלת ביצועים</div>
+    <table class="mt"><thead><tr><th>תנאי</th><th>ראות</th><th>alpha</th><th>500מ'</th><th>1ק"מ</th><th>רכב</th><th>אדם</th><th>השפעה</th></tr></thead>
+    <tbody id="tb-wx"></tbody></table></div>
+</div>
+
+<!-- TAB: SCENARIOS -->
+<div id="t-scenarios" class="tc">
+  <div class="help" id="help-scenarios"></div>
+  <div class="card"><div class="ct">בחר תרחיש מבצעי</div><div class="g3" id="sc-cards"></div></div>
+  <div id="sc-detail" class="card"></div>
+</div>
+
+<!-- TAB: SENSOR EDITOR -->
+<div id="t-sensor" class="tc">
+  <div class="help" id="help-sensor"></div>
+  <div class="card">
+    <div class="ct">עריכה ידנית של מפרט החיישן</div>
+    <div class="spec-edit" id="spec-fields"></div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="pb on" onclick="resetSpec()">איפוס ל-DJI L3</button>
+      <button class="pb" onclick="applySpec()">החל שינויים</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">העלאת מפרט מ-PDF</div>
+    <div class="upload-zone" id="pdf-zone" onclick="document.getElementById('pdf-input').click()">
+      <input type="file" id="pdf-input" accept=".pdf" onchange="handlePDF(this)">
+      <div style="font-size:2em;margin-bottom:8px">📄</div>
+      <div>גרור קובץ PDF לכאן או לחץ לבחירה</div>
+      <div style="font-size:.75em;margin-top:6px;color:var(--txt3)">המערכת תנסה לחלץ פרמטרים אוטומטית מהמסמך</div>
+    </div>
+    <div id="pdf-result" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- TAB: ASSUMPTIONS -->
+<div id="t-info" class="tc">
+  <div class="help" id="help-info"></div>
+  <div class="card"><div class="ct">מפרט יצרן (📋)</div>
+    <table class="mt"><thead><tr><th>פרמטר</th><th>ערך</th><th>מקור</th></tr></thead><tbody id="tb-spec"></tbody></table></div>
+  <div class="card"><div class="ct" style="color:var(--orange)">הנחות והערכות (⚠️)</div>
+    <table class="mt"><thead><tr><th>פרמטר</th><th>ערך</th><th>בסיס</th><th>רגישות</th></tr></thead><tbody id="tb-est"></tbody></table></div>
+  <div class="card"><div class="ct" style="color:var(--purple)">ממצאי מחקר (📚)</div><div id="research-refs"></div></div>
+  <div class="card"><div class="ct">נוסחאות</div><div id="formulas-div" style="direction:ltr;text-align:left;font-family:monospace;font-size:.82em;line-height:2.2;color:var(--txt2)"></div></div>
+</div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════
+// SENSOR CONFIG (editable)
+// ════════════════════════════════════════
+var S = {
+  nm:1535, div:0.25, div_r:0.00025, fov:80,
+  fov_v:{linear:3,star:80,nonrep:80},
+  min_r:10, max_pts:2000000,
+  prr_k:[100,350,1000,2000], prr_h:[1e5,3.5e5,1e6,2e6],
+  ret:[16,16,8,4],
+  r10:950, r80:2000
+};
+var S_DEF=JSON.parse(JSON.stringify(S));
+
+var TGT={
+  vehicle:{n:"\u{1F697} \u05E8\u05DB\u05D1",rf:.55,w:2,l:4.5,h:1.5,a:9,mp:5,hg:1.5,c:'#3498db'},
+  person:{n:"\u{1F6B6} \u05D0\u05D3\u05DD",rf:.25,w:.5,l:.5,h:1.7,a:.25,mp:3,hg:1.7,c:'#2ecc71'},
+  object:{n:"\u{1F392} \u05D7\u05E4\u05E5 \u05D7\u05E9\u05D5\u05D3",rf:.30,w:.4,l:.4,h:.25,a:.16,mp:3,hg:.25,c:'#f39c12'},
+  tracks:{n:"\u{1F463} \u05E2\u05E7\u05D1\u05D5\u05EA",rf:.40,w:.1,l:.3,h:-.02,a:.03,mp:1,hg:-.02,c:'#e74c3c',md:25},
+  ied:{n:"\u{1F4A3} \u05DE\u05D8\u05E2\u05DF \u05D1\u05E9\u05D1\u05D9\u05DC",rf:.25,w:.3,l:.3,h:.1,a:.09,mp:2,hg:.05,c:'#9b59b6'}
+};
+
+var WX={
+  clear:{n:"\u05D1\u05D4\u05D9\u05E8",v:23,a:.044},haze_light:{n:"\u05D0\u05D5\u05D1\u05DA \u05E7\u05DC",v:10,a:.10},
+  haze:{n:"\u05D0\u05D5\u05D1\u05DA",v:4,a:.25},fog_light:{n:"\u05E2\u05E8\u05E4\u05DC \u05E7\u05DC",v:2,a:.55},
+  fog:{n:"\u05E2\u05E8\u05E4\u05DC",v:1,a:1.2},rain_light:{n:"\u05D2\u05E9\u05DD \u05E7\u05DC",v:6,a:.17},
+  rain:{n:"\u05D2\u05E9\u05DD \u05D1\u05D9\u05E0\u05D5\u05E0\u05D9",v:3,a:.35},rain_heavy:{n:"\u05D2\u05E9\u05DD \u05DB\u05D1\u05D3",v:2,a:.55},
+  dust:{n:"\u05D0\u05D1\u05E7/\u05D7\u05DE\u05E1\u05D9\u05DF",v:3,a:.30}
+};
+
+// ════════════════════════════════════════
+// PHYSICS v2 — research-calibrated
+// ════════════════════════════════════════
+var P={
+  _C10:Math.pow(950,4)/.10, _C80:Math.pow(2000,4)/.80,
+  sc:function(pi){var r=[1,.294,.028,.007];return((this._C10+this._C80)/2)*r[pi];},
+  al:function(wk){return WX[wk].a/1000;},
+  maxR:function(rf,pi,wk){
+    var C=this.sc(pi),tgt=C*rf,a=this.al(wk);
+    if(a<1e-5)return Math.min(Math.pow(tgt,.25),2500);
+    var R=Math.min(Math.pow(tgt,.25),2500);
+    for(var i=0;i<100;i++){var f=Math.pow(R,4)*Math.exp(2*a*R)-tgt;var fp=(4*Math.pow(R,3)+2*a*Math.pow(R,4))*Math.exp(2*a*R);if(Math.abs(fp)<1e-30)break;R-=f/fp;R=Math.max(10,Math.min(R,3000));if(Math.abs(f/fp)<.01)break;}
+    return Math.max(0,R);
+  },
+  trans:function(r,wk){return Math.exp(-2*this.al(wk)*r);},
+  dens:function(pi,spd,alt,scan,ovl){
+    var prr=Math.min(S.prr_h[pi],S.max_pts);
+    var sw=2*alt*Math.tan(S.fov*Math.PI/360);
+    var af=1;if(scan!=='linear')af=S.fov_v[scan]/S.fov_v.linear;
+    return(prr*(1+ovl/100))/(spd*sw*af);
+  },
+  sw:function(a){return 2*a*Math.tan(S.fov*Math.PI/360);},
+  fp:function(a){return a*S.div_r;},
+  sp:function(d){return d>0?1/Math.sqrt(d):999;},
+  pts:function(t,d){return d*t.a;},
+  // Research-calibrated cloud thickness model
+  // Spec: 1.2cm@120m, extrapolate with sqrt relationship
+  thick:function(a){
+    if(a<=10)return 0.4; // extrapolated
+    if(a<=120)return 0.4+(a-10)*(1.2-0.4)/(120-10);
+    if(a<=300)return 1.2+(a-120)*(2.0-1.2)/(300-120);
+    return 2.0+(a-300)*0.015;
+  },
+  // Research: vertical accuracy degrades ~linearly with altitude
+  // L2 test: 7.3cm @50m → ~3cm@120m spec → extrapolate
+  vAcc:function(a){
+    if(a<=20)return 1.5;if(a<=50)return 1.5+(a-20)*5.8/30;
+    if(a<=120)return 7.3+(a-50)*(-4.3)/70;
+    return 3+(a-120)*0.02;
+  },
+  score:function(t,alt,pi,spd,scan,ovl,wk){
+    var d=this.dens(pi,spd,alt,scan,ovl);
+    var pts=this.pts(t,d);var th=this.thick(alt);
+    var hd=Math.abs(t.hg)*100;var fp=this.fp(alt)*100;
+    var mr=this.maxR(t.rf,pi,wk);
+    var ps=0;
+    if(t.md)ps=Math.min(40,(d/t.md)*40);
+    else ps=Math.min(40,(pts/t.mp)*40);
+    var hs=hd<.5?0:Math.min(30,(hd/(th*3))*30);
+    var rs=alt<=mr?20:Math.max(0,20*(1-(alt-mr)/mr));
+    var td=Math.min(t.w,t.l)*100;
+    var ss=fp<td?10:Math.max(0,10*(td/fp));
+    return Math.min(100,Math.round(ps+hs+rs+ss));
+  }
+};
+
+// ════════════════════════════════════════
+// DOM HELPERS (safe, no innerHTML)
+// ════════════════════════════════════════
+function el(t,a,ch){var e=document.createElement(t);if(a)Object.keys(a).forEach(function(k){
+  if(k==='cls')e.className=a[k];else if(k==='txt')e.textContent=a[k];else if(k==='dir')e.dir=a[k];
+  else if(k==='stl')e.style.cssText=a[k];else if(k==='onclick')e.onclick=a[k];else e.setAttribute(k,a[k]);
+});if(ch)ch.forEach(function(c){if(typeof c==='string')e.appendChild(document.createTextNode(c));else if(c)e.appendChild(c);});return e;}
+function clr(id){var e=document.getElementById(id);while(e&&e.firstChild)e.removeChild(e.firstChild);return e;}
+function mkKpi(v,u,l,tg,cc){var d=el('div',{cls:'kpi '+(cc||'kpi-b')});var vv=el('div',{cls:'kv'});vv.appendChild(document.createTextNode(v));vv.appendChild(el('span',{cls:'ku',txt:' '+u}));d.appendChild(vv);d.appendChild(el('div',{cls:'kl',txt:l}));if(tg)d.appendChild(el('div',{cls:'kt',txt:tg}));return d;}
+function mkRow(cells){var tr=el('tr');cells.forEach(function(c){var td=el('td');if(typeof c==='object'&&c.cls)td.className=c.cls;if(typeof c==='object'&&c.dir)td.dir=c.dir;if(typeof c==='object'&&c.stl)td.style.cssText=c.stl;td.textContent=(typeof c==='object')?c.txt:c;tr.appendChild(td);});return tr;}
+
+// ════════════════════════════════════════
+// HELP TEXTS
+// ════════════════════════════════════════
+var HELPS={
+  range:'<b>מה עושה הלשונית:</b> מחשבת את טווח הגילוי המקסימלי של הלייזר לכל סוג מטרה.<ul><li>בחר <b>תדר פולסים</b> — נמוך יותר = טווח ארוך יותר (אנרגיה לפולס גבוהה יותר)</li><li>בחר <b>מזג אוויר</b> — ערפל/גשם מקצרים טווח באופן אקספוננציאלי</li><li>כוונן <b>גובה</b> (10-200 מ\') — גובה נמוך = צפיפות גבוהה ופירוט טוב יותר</li><li>הגרף מראה את הטווח <b>האלכסוני</b> של הלייזר (לא את הטווח הקרקעי)</li></ul>',
+  density:'<b>מה עושה הלשונית:</b> מחשבת כמה נקודות LiDAR יפגעו בכל מ"ר של קרקע.<ul><li><b>מהירות נמוכה + גובה נמוך = צפיפות מקסימלית</b></li><li>הגרף מראה את הצפיפות לכל גובה — קווים מקווקווים הם סף הזיהוי למטרות שונות</li><li>הטבלה מראה אם הצפיפות הנוכחית <b>מספיקה לזיהוי</b> כל סוג מטרה</li><li>Linear = רצועה צרה (מהיר), Non-Rep = כיסוי מלא (איטי יותר)</li></ul>',
+  targets:'<b>מה עושה הלשונית:</b> מטריצת זיהוי מקיפה — כל מטרה מקבלת ציון 0-100.<ul><li>הציון משקלל: מספר נקודות על המטרה, הבדל גובה מהקרקע, טווח, וגודל כתם הלייזר</li><li><b>מעל 60 = סביר</b>, 30-60 = גבולי, <b>מתחת ל-30 = בעייתי</b></li><li>גרף הרדאר מציג השוואה ויזואלית בין שני גבהים</li><li>ממצאי מחקר אמיתיים מופיעים בצד</li></ul>',
+  weather:'<b>מה עושה הלשונית:</b> מראה איך תנאי מזג אוויר משפיעים על ביצועי הלייזר.<ul><li><b>1535nm יתרון במדבר</b> — פחות רגיש לאבק מ-905nm, אין ספיגת מים בסביבה יבשה</li><li>הגרף השמאלי: טווח לכל תנאי. הגרף הימני: שקיפות לפי מרחק (Beer-Lambert)</li><li><b>ערפל בינוני</b> מקצר טווח ב-50%+, גשם כבד דומה לערפל קל</li></ul>',
+  scenarios:'<b>מה עושה הלשונית:</b> 6 תרחישים מבצעיים מוגדרים מראש עם פרמטרים אופטימליים.<ul><li>לחץ על כרטיס תרחיש לראות <b>תוצאות חישוב מלאות</b> + המלצות</li><li>כל תרחיש כולל: צפיפות, טווח, עובי ענן, והערכה מילולית</li><li><b>ירוק = מתאים</b>, כתום = מוגבל, אדום = לא מתאים</li></ul>',
+  sensor:'<b>מה עושה הלשונית:</b> שנה את פרמטרי החיישן — להשוואת חיישנים שונים או בדיקת רגישות.<ul><li><b>עריכה ידנית:</b> שנה כל פרמטר ולחץ "החל שינויים" — כל הגרפים יתעדכנו</li><li><b>העלאת PDF:</b> העלה מפרט יצרן — המערכת תנסה לחלץ מספרים אוטומטית</li><li>לחץ <b>"איפוס ל-DJI L3"</b> לחזרה למפרט המקורי</li><li>פרמטרים שמשתנים: טווח, FOV, התפשטות קרן, PRR, מקס\' החזרות</li></ul>',
+  info:'<b>מה עושה הלשונית:</b> כל המקורות, ההנחות, הנוסחאות והמחקרים שמאחורי הסימולציה.<ul><li>📋 = נתון מפרט יצרן (אמין ביותר)</li><li>🔢 = חישוב פיזיקלי מנוסחאות ידועות</li><li>⚠️ = הערכה/הנחה (יש לבדוק רגישות)</li><li>📚 = מבוסס מחקר/ניסוי שפורסם</li></ul>'
+};
+
+// ════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════
+var TABS=[
+  {id:'range',t:'\u05D8\u05D5\u05D5\u05D7 \u05D2\u05D9\u05DC\u05D5\u05D9'},
+  {id:'density',t:'\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA'},
+  {id:'targets',t:'\u05DE\u05D8\u05E8\u05D9\u05E6\u05EA \u05D6\u05D9\u05D4\u05D5\u05D9'},
+  {id:'weather',t:'\u05DE\u05D6\u05D2 \u05D0\u05D5\u05D5\u05D9\u05E8'},
+  {id:'scenarios',t:'\u05EA\u05E8\u05D7\u05D9\u05E9\u05D9\u05DD'},
+  {id:'sensor',t:'\u2699\uFE0F \u05E2\u05E8\u05D9\u05DB\u05EA \u05DE\u05E4\u05E8\u05D8'},
+  {id:'info',t:'\u05DE\u05E7\u05D5\u05E8\u05D5\u05EA \u05D5\u05E0\u05D5\u05E1\u05D7\u05D0\u05D5\u05EA'}
+];
+function buildTabs(){var bar=document.getElementById('tabbar');TABS.forEach(function(t,i){
+  var b=el('button',{cls:'tab'+(i===0?' on':''),txt:t.t});
+  b.onclick=function(){
+    document.querySelectorAll('.tc').forEach(function(e){e.classList.remove('on');});
+    document.querySelectorAll('.tab').forEach(function(e){e.classList.remove('on');});
+    document.getElementById('t-'+t.id).classList.add('on');b.classList.add('on');
+    if(t.id==='targets')upMat();if(t.id==='weather')upWx();
+  };bar.appendChild(b);
+});}
+
+function setHelps(){Object.keys(HELPS).forEach(function(k){
+  var box=document.getElementById('help-'+k);if(!box)return;
+  // Safe: help content is hardcoded, not user input
+  var d=el('div');d.insertAdjacentHTML('afterbegin',HELPS[k]);box.appendChild(d);
+});}
+
+// ════════════════════════════════════════
+// CHARTS
+// ════════════════════════════════════════
+var CH={};
+function initCh(){
+  Chart.defaults.color='#95a5a6';Chart.defaults.borderColor='#2c3e50';
+  var tn=Object.values(TGT).map(function(t){return t.n;});
+  var tc=Object.values(TGT).map(function(t){return t.c;});
+
+  CH.range=new Chart(document.getElementById('chRange'),{type:'bar',
+    data:{labels:tn,datasets:[{label:'טווח (מ\')',data:[0,0,0,0,0],backgroundColor:tc.map(function(c){return c+'99';}),borderColor:tc,borderWidth:2,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:'טווח (מ\')'},beginAtZero:true,max:2200,grid:{color:'#1e3044'}},y:{grid:{display:false},ticks:{font:{size:12}}}}}});
+
+  CH.dens=new Chart(document.getElementById('chDens'),{type:'line',
+    data:{labels:[],datasets:[
+      {label:'צפיפות',data:[],borderColor:'#00b4d8',backgroundColor:'rgba(0,180,216,.1)',fill:true,tension:.3,pointRadius:2},
+      {label:'סף אדם (12)',data:[],borderColor:'#2ecc71',borderDash:[5,5],pointRadius:0,fill:false},
+      {label:'סף עקבות (25)',data:[],borderColor:'#e74c3c',borderDash:[5,5],pointRadius:0,fill:false},
+      {label:'סף רכב (0.6)',data:[],borderColor:'#3498db',borderDash:[3,3],pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:12}}},
+      scales:{x:{title:{display:true,text:'גובה (מ\')'},grid:{color:'#1e3044'}},y:{title:{display:true,text:'נק\'/מ"ר'},type:'logarithmic',grid:{color:'#1e3044'},min:1}}}});
+
+  CH.radar=new Chart(document.getElementById('chRadar'),{type:'radar',
+    data:{labels:tn,datasets:[
+      {label:'50 מ\'',data:[0,0,0,0,0],backgroundColor:'rgba(46,204,113,.2)',borderColor:'#2ecc71',borderWidth:2,pointBackgroundColor:'#2ecc71'},
+      {label:'120 מ\'',data:[0,0,0,0,0],backgroundColor:'rgba(0,180,216,.2)',borderColor:'#00b4d8',borderWidth:2,pointBackgroundColor:'#00b4d8'},
+      {label:'200 מ\'',data:[0,0,0,0,0],backgroundColor:'rgba(243,156,18,.2)',borderColor:'#f39c12',borderWidth:2,pointBackgroundColor:'#f39c12'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},
+      scales:{r:{min:0,max:100,ticks:{stepSize:20,backdropColor:'transparent',color:'#7f8c8d'},grid:{color:'#2c3e50'},angleLines:{color:'#2c3e50'},pointLabels:{color:'#ecf0f1',font:{size:11}}}}}});
+
+  CH.wxR=new Chart(document.getElementById('chWxR'),{type:'bar',
+    data:{labels:Object.values(WX).map(function(w){return w.n;}),datasets:[
+      {label:'רכב',data:[],backgroundColor:'#3498db99',borderColor:'#3498db',borderWidth:1,borderRadius:3},
+      {label:'אדם',data:[],backgroundColor:'#2ecc7199',borderColor:'#2ecc71',borderWidth:1,borderRadius:3},
+      {label:'חפץ חשוד',data:[],backgroundColor:'#f39c1299',borderColor:'#f39c12',borderWidth:1,borderRadius:3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9}}}},
+      scales:{x:{grid:{color:'#1e3044'}},y:{title:{display:true,text:'טווח (מ\')'},grid:{color:'#1e3044'},beginAtZero:true}}}});
+
+  CH.trans=new Chart(document.getElementById('chTrans'),{type:'line',data:{labels:[],datasets:[]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9}}}},
+      scales:{x:{title:{display:true,text:'מרחק (מ\')'},grid:{color:'#1e3044'}},y:{title:{display:true,text:'שקיפות'},min:0,max:1,grid:{color:'#1e3044'}}}}});
+}
+
+// ════════════════════════════════════════
+// UPDATES
+// ════════════════════════════════════════
+function upRange(){
+  var pi=+document.getElementById('s-prr').value;
+  var wk=document.getElementById('s-wx').value;
+  var alt=+document.getElementById('s-alt').value;
+  document.getElementById('v-prr').textContent=S.prr_k[pi]+' kHz';
+  document.getElementById('v-alt').textContent=alt+" \u05DE'";
+
+  var keys=Object.keys(TGT);
+  var ranges=keys.map(function(k){return Math.round(P.maxR(TGT[k].rf,pi,wk));});
+  CH.range.data.datasets[0].data=ranges;
+  CH.range.options.scales.x.max=Math.max(2200,Math.max.apply(null,ranges)*1.1);
+  CH.range.update();
+
+  var box=clr('kpi-range');
+  var labs=['\u05D8\u05D5\u05D5\u05D7 \u05E8\u05DB\u05D1','\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD','\u05D8\u05D5\u05D5\u05D7 \u05D7\u05E4\u05E5','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
+  ranges.forEach(function(r,i){
+    var ok=r>alt;
+    box.appendChild(mkKpi(r,"\u05DE'",labs[i],'\u{1F522}',ok?'kpi-g':'kpi-r'));
+  });
+
+  // Altitude insight
+  var ins=clr('alt-insight');
+  var d=P.dens(pi,8,alt,'nonrep',30);
+  var fp=P.fp(alt)*100;
+  var th=P.thick(alt);
+  var va=P.vAcc(alt);
+
+  ins.appendChild(el('div',{cls:'ct',txt:'\u{1F4CA} \u05DE\u05E9\u05DE\u05E2\u05D5\u05EA \u05D2\u05D5\u05D1\u05D4 '+alt+' \u05DE\' \u05E2\u05DC \u05D4\u05D6\u05D9\u05D4\u05D5\u05D9'}));
+  var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+  g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA (8 \u05DE'/\u05E9, NR)",'\u{1F522}',d>=25?'kpi-g':d>=12?'kpi-o':'kpi-r'));
+  g.appendChild(mkKpi(fp.toFixed(1),"\u05E1\"\u05DE","\u05DB\u05EA\u05DD \u05DC\u05D9\u05D9\u05D6\u05E8",'\u{1F522}','kpi-b'));
+  g.appendChild(mkKpi(th.toFixed(1),"\u05E1\"\u05DE","\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF (1\u03C3)",'\u{1F522}','kpi-b'));
+  g.appendChild(mkKpi(va.toFixed(1),"\u05E1\"\u05DE","\u05D3\u05D9\u05D5\u05E7 \u05D0\u05E0\u05DB\u05D9 RMSE",'\u{1F4DA}','kpi-b'));
+  ins.appendChild(g);
+
+  // Verdict by altitude
+  var msg,cls;
+  if(alt<=20){msg='\u{1F7E2} \u05D2\u05D5\u05D1\u05D4 \u05D0\u05D5\u05DC\u05D8\u05E8\u05D4-\u05E0\u05DE\u05D5\u05DA: \u05E6\u05E4\u05D9\u05E4\u05D5\u05EA \u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9\u05EA, \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E2\u05E7\u05D1\u05D5\u05EA \u05D5\u05DE\u05D8\u05E2\u05E0\u05D9\u05DD \u05D0\u05E4\u05E9\u05E8\u05D9. \u05E8\u05E6\u05D5\u05E2\u05D4 \u05E6\u05E8\u05D4 \u05DE\u05D0\u05D5\u05D3 ('+Math.round(P.sw(alt))+' \u05DE\'). \u05E1\u05D9\u05DB\u05D5\u05DF \u05E8\u05E2\u05E9 \u05DE\u05E8\u05D7\u05E4\u05DF.';cls='vg';}
+  else if(alt<=50){msg='\u{1F7E2} \u05D2\u05D5\u05D1\u05D4 \u05D0\u05D5\u05E4\u05D8\u05D9\u05DE\u05DC\u05D9 \u05DC\u05D7\u05D9\u05E4\u05D5\u05E9: \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD+\u05D7\u05E4\u05E6\u05D9\u05DD \u05D0\u05DE\u05D9\u05DF. \u05E2\u05E7\u05D1\u05D5\u05EA \u05D1\u05E7\u05E8\u05E7\u05E2 \u05E8\u05DB\u05D4. \u05D0\u05D9\u05D6\u05D5\u05DF \u05D8\u05D5\u05D1 \u05D1\u05D9\u05DF \u05E8\u05E6\u05D5\u05E2\u05D4 \u05DC\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA.';cls='vg';}
+  else if(alt<=100){msg='\u{1F7E1} \u05D2\u05D5\u05D1\u05D4 \u05E1\u05D9\u05D5\u05E8: \u05E8\u05DB\u05D1 \u05D5\u05D0\u05D3\u05DD \u2014 \u05DB\u05DF. \u05D7\u05E4\u05E6\u05D9\u05DD \u05E7\u05D8\u05E0\u05D9\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9. \u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05DC\u05D0 \u05D9\u05E1\u05E4\u05D9\u05E7.';cls='vp';}
+  else{msg='\u{1F534} \u05D2\u05D5\u05D1\u05D4 \u05DE\u05D9\u05E4\u05D5\u05D9: \u05E8\u05DB\u05D1 \u2014 \u05DB\u05DF. \u05D0\u05D3\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9. \u05D7\u05E4\u05E6\u05D9\u05DD+\u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05DC\u05D0 \u05DE\u05EA\u05D0\u05E4\u05E9\u05E8. \u05DE\u05EA\u05D0\u05D9\u05DD \u05DC\u05DE\u05D9\u05E4\u05D5\u05D9 \u05D1\u05DC\u05D1\u05D3.';cls='vb';}
+  ins.appendChild(el('div',{cls:'vrd '+cls,txt:msg}));
+}
+
+function upDens(){
+  var pi=+document.getElementById('s-dp').value;
+  var spd=+document.getElementById('s-ds').value;
+  var alt=+document.getElementById('s-da').value;
+  var scan=document.getElementById('s-dscan').value;
+  var ovl=+document.getElementById('s-do').value;
+  document.getElementById('v-da').textContent=alt+" \u05DE'";
+  document.getElementById('v-ds').textContent=spd+" \u05DE'/\u05E9";
+  document.getElementById('v-dp').textContent=S.prr_k[pi]+' kHz';
+  document.getElementById('v-do').textContent=ovl+'%';
+
+  var d=P.dens(pi,spd,alt,scan,ovl);
+  var sw=P.sw(alt);var fp=P.fp(alt)*100;var sp=P.sp(d)*100;
+
+  var box=clr('kpi-dens');
+  box.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",'\u{1F522}',d>=25?'kpi-g':d>=12?'kpi-o':'kpi-r'));
+  box.appendChild(mkKpi(Math.round(sw),"\u05DE'","\u05E8\u05D5\u05D7\u05D1 \u05E8\u05E6\u05D5\u05E2\u05D4",'\u{1F522}','kpi-b'));
+  box.appendChild(mkKpi(fp.toFixed(1),"\u05E1\"\u05DE","\u05DB\u05EA\u05DD \u05DC\u05D9\u05D9\u05D6\u05E8",'\u{1F522}','kpi-o'));
+  box.appendChild(mkKpi(sp.toFixed(1),"\u05E1\"\u05DE","\u05DE\u05E8\u05D5\u05D5\u05D7 \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA",'\u{1F522}','kpi-b'));
+
+  var alts=[],dA=[],pT=[],tT=[],vT=[];
+  for(var h=10;h<=200;h+=2){alts.push(h);dA.push(P.dens(pi,spd,h,scan,ovl));pT.push(12);tT.push(25);vT.push(0.6);}
+  CH.dens.data.labels=alts;CH.dens.data.datasets[0].data=dA;CH.dens.data.datasets[1].data=pT;CH.dens.data.datasets[2].data=tT;CH.dens.data.datasets[3].data=vT;CH.dens.update();
+
+  var tb=clr('tb-dthr');
+  var rows=[
+    {n:'\u{1F697} \u05E8\u05DB\u05D1',s:'4.5x2 \u05DE\'',req:.6},
+    {n:'\u{1F6B6} \u05D0\u05D3\u05DD',s:'0.5x0.5 \u05DE\'',req:12},
+    {n:'\u{1F392} \u05D7\u05E4\u05E5',s:'0.4x0.4 \u05DE\'',req:18.75},
+    {n:'\u{1F463} \u05E2\u05E7\u05D1\u05D5\u05EA',s:'0.1x0.3 \u05DE\'',req:25},
+    {n:'\u{1F4A3} \u05DE\u05D8\u05E2\u05DF',s:'0.3x0.3 \u05DE\'',req:22.2}
+  ];
+  rows.forEach(function(r){
+    var ok=d>=r.req;var half=d>=r.req*.5;
+    tb.appendChild(mkRow([r.n,r.s,
+      {txt:r.req.toFixed(1)+' \u05E0\u05E7\'/\u05DE"\u05E8',dir:'ltr'},
+      {txt:d.toFixed(1)+' \u05E0\u05E7\'/\u05DE"\u05E8',dir:'ltr'},
+      {txt:ok?'\u2705 \u05DE\u05E1\u05E4\u05D9\u05E7':half?'\u26A0\uFE0F \u05D2\u05D1\u05D5\u05DC\u05D9':'\u274C \u05DC\u05D0 \u05DE\u05E1\u05E4\u05D9\u05E7',cls:ok?'dh':half?'dm':'dl'}
+    ]));
+  });
+}
+
+function upMat(){
+  var tb=clr('tb-mat');
+  var s50=[],s120=[],s200=[];
+  var notes={vehicle:'\u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05DE\u05D9\u05DF. \u05E0\u05E4\u05D7 \u05D1\u05D5\u05DC\u05D8.',
+    person:'\u05E0\u05D9\u05E1\u05D5\u05D9 CNN: 95% \u05D3\u05D9\u05D5\u05E7 (Ouster, 2023). \u05DC\u05DC\u05D0 \u05E1\u05D9\u05D5\u05D5\u05D2.',
+    object:'\u05D6\u05D9\u05D4\u05D5\u05D9 \u05E0\u05E4\u05D7 \u05E2\u05DC \u05E9\u05D1\u05D9\u05DC. \u05DC\u05D0 \u05DE\u05D1\u05D7\u05D9\u05DF \u05EA\u05D9\u05E7/\u05D0\u05D1\u05DF.',
+    tracks:'\u05D3\u05D5\u05E8\u05E9 baseline + change det. \u05E2\u05D5\u05DE\u05E7 1-3 \u05E1"\u05DE.',
+    ied:'MIT Lincoln Lab: \u05D4\u05D5\u05DB\u05D7 \u05D1\u05E0\u05D9\u05E1\u05D5\u05D9 CBP 2017.'};
+
+  Object.keys(TGT).forEach(function(k){
+    var t=TGT[k];
+    var d50=P.dens(0,8,50,'nonrep',30),d120=P.dens(0,8,120,'nonrep',30);
+    var p50=P.pts(t,d50),p120=P.pts(t,d120);
+    var sc50=P.score(t,50,0,8,'nonrep',30,'clear');
+    var sc120=P.score(t,120,0,8,'nonrep',30,'clear');
+    s50.push(sc50);s120.push(sc120);s200.push(P.score(t,200,0,8,'nonrep',30,'clear'));
+
+    var c50=sc50>=60?'dh':sc50>=30?'dm':'dl';
+    var c120=sc120>=60?'dh':sc120>=30?'dm':'dl';
+    var t50=sc50>=60?'\u05D2\u05D1\u05D5\u05D4\u05D4':sc50>=30?'\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA':'\u05E0\u05DE\u05D5\u05DB\u05D4';
+    var t120=sc120>=60?'\u05D2\u05D1\u05D5\u05D4\u05D4':sc120>=30?'\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA':'\u05E0\u05DE\u05D5\u05DB\u05D4';
+    var hS=t.hg<0?Math.abs(t.hg*100)+' \u05E1"\u05DE \u05E9\u05E7\u05E2':t.hg<1?(t.hg*100).toFixed(0)+' \u05E1"\u05DE':t.hg.toFixed(1)+' \u05DE\'';
+
+    tb.appendChild(mkRow([t.n,{txt:(t.rf*100)+'%',dir:'ltr'},{txt:t.w+'x'+t.l,dir:'ltr'},hS,
+      {txt:p50.toFixed(1),dir:'ltr'},{txt:sc50.toString(),cls:c50},{txt:t50,cls:c50},
+      {txt:p120.toFixed(1),dir:'ltr'},{txt:sc120.toString(),cls:c120},{txt:t120,cls:c120},
+      {txt:notes[k]||'',stl:'font-size:.72em;text-align:right'}
+    ]));
+  });
+  CH.radar.data.datasets[0].data=s50;CH.radar.data.datasets[1].data=s120;CH.radar.data.datasets[2].data=s200;CH.radar.update();
+
+  // Research box
+  var rb=clr('research-box');
+  rb.appendChild(el('div',{cls:'ct',txt:'\u{1F4DA} \u05DE\u05DE\u05E6\u05D0\u05D9 \u05DE\u05D7\u05E7\u05E8 \u05E8\u05DC\u05D5\u05D5\u05E0\u05D8\u05D9\u05D9\u05DD'}));
+  var items=[
+    '\u{1F4CB} Ouster OS1-32 (2023): \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD \u2014 Precision 95.4%, Recall 95.1%',
+    '\u{1F4CB} DJI L2 (2025): \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D2\u05D5\u05E3 \u05DE\u05D5\u05E1\u05EA\u05E8 \u05DE\u05EA\u05D7\u05EA \u05E6\u05DE\u05D7\u05D9\u05D9\u05D4 \u05E6\u05E4\u05D5\u05E4\u05D4',
+    '\u{1F4CB} MIT Lincoln Lab (2017): \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E8\u05DB\u05D1\u05D9\u05DD+\u05D0\u05D5\u05D4\u05DC\u05D9\u05DD \u05DE\u05EA\u05D7\u05EA \u05E2\u05E6\u05D9\u05DD, Change Det. \u05DC\u05D2\u05D1\u05D5\u05DC',
+    '\u{1F4CB} Quanergy: LiDAR \u05D1\u05DE\u05D3\u05D1\u05E8 \u2014 \u05D0\u05D9\u05EA\u05D5\u05E8 \u05D7\u05D3\u05D9\u05E8\u05D4 \u05D1\u05D1\u05E1\u05D9\u05E1 \u05E6\u05D1\u05D0\u05D9\u05EA \u05DE\u05DE\u05D5\u05D6\u05E2\u05E8 \u05D0\u05D1\u05E7/\u05E8\u05D5\u05D7',
+    '\u{1F4CB} 1535nm \u05D1\u05DE\u05D3\u05D1\u05E8: \u05E4\u05D9 40 \u05D9\u05D5\u05EA\u05E8 \u05D4\u05E1\u05E4\u05E7 \u05DE-905nm \u05D1\u05D1\u05D8\u05D9\u05D7\u05D5\u05EA. \u05D0\u05D9\u05D3\u05D9\u05D0\u05DC\u05D9 \u05DC\u05E1\u05D1\u05D9\u05D1\u05D4 \u05D9\u05D1\u05E9\u05D4.',
+    '\u{1F4CB} \u05E1\u05E3 \u05D6\u05D9\u05D4\u05D5\u05D9: CNN \u05E9\u05D5\u05DE\u05E8 90%+ \u05D3\u05D9\u05D5\u05E7 \u05D2\u05DD \u05D1-10% \u05DE\u05D4\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA \u05D4\u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9\u05EA'
+  ];
+  var ul=el('div',{stl:'font-size:.82em;color:var(--txt2);line-height:2'});
+  items.forEach(function(it){ul.appendChild(el('div',{txt:it}));});
+  rb.appendChild(ul);
+}
+
+function upWx(){
+  var vR=[],pR=[],oR=[];
+  Object.keys(WX).forEach(function(wk){vR.push(Math.round(P.maxR(.55,0,wk)));pR.push(Math.round(P.maxR(.25,0,wk)));oR.push(Math.round(P.maxR(.30,0,wk)));});
+  CH.wxR.data.datasets[0].data=vR;CH.wxR.data.datasets[1].data=pR;CH.wxR.data.datasets[2].data=oR;CH.wxR.update();
+
+  var ds=[];for(var d=0;d<=2000;d+=50)ds.push(d);
+  var clrs=['#3498db','#2ecc71','#f1c40f','#e67e22','#e74c3c','#1abc9c','#9b59b6','#95a5a6','#e91e63'];
+  var sets=[];var ci=0;
+  Object.keys(WX).forEach(function(wk){sets.push({label:WX[wk].n,data:ds.map(function(d){return P.trans(d,wk);}),borderColor:clrs[ci%clrs.length],borderWidth:1.5,pointRadius:0,fill:false});ci++;});
+  CH.trans.data.labels=ds;CH.trans.data.datasets=sets;CH.trans.update();
+
+  var tb=clr('tb-wx');var i=0;
+  Object.keys(WX).forEach(function(wk){var w=WX[wk];
+    var imp=w.v>=10?'\u05DE\u05D6\u05E2\u05E8\u05D9\u05EA':w.v>=4?'\u05E7\u05DC\u05D4':w.v>=2?'\u05DE\u05E9\u05DE\u05E2\u05D5\u05EA\u05D9\u05EA':'\u05D7\u05DE\u05D5\u05E8\u05D4';
+    var ic=w.v>=10?'dh':w.v>=4?'dm':'dl';
+    tb.appendChild(mkRow([w.n,{txt:w.v+'',dir:'ltr'},{txt:w.a+'',dir:'ltr'},
+      {txt:(P.trans(500,wk)*100).toFixed(1)+'%',dir:'ltr'},
+      {txt:(P.trans(1000,wk)*100).toFixed(1)+'%',dir:'ltr'},
+      {txt:vR[i]+' \u05DE\'',dir:'ltr'},{txt:pR[i]+' \u05DE\'',dir:'ltr'},
+      {txt:imp,cls:ic}]));i++;});
+}
+
+// ════════════════════════════════════════
+// SCENARIOS
+// ════════════════════════════════════════
+var SC={
+  ultra_low:{t:'\u{1F4A3} \u05D7\u05D9\u05E4\u05D5\u05E9 \u05DE\u05D8\u05E2\u05E0\u05D9\u05DD',d:'\u05D8\u05D9\u05E1\u05D4 \u05E0\u05DE\u05D5\u05DB\u05D4 \u05DE\u05D0\u05D5\u05D3 (10-20 \u05DE\') \u05DC\u05D6\u05D9\u05D4\u05D5\u05D9 \u05D7\u05E4\u05E6\u05D9\u05DD \u05D5\u05E2\u05E7\u05D1\u05D5\u05EA',p:'15 \u05DE\', 3 \u05DE\'/\u05E9, 100kHz, Star',
+    b:function(){var d=P.dens(0,3,15,'star',50);var th=P.thick(15);var fp=P.fp(15)*100;
+      var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+      g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,'kpi-g'));
+      g.appendChild(mkKpi(fp.toFixed(1),"\u05E1\"\u05DE","\u05DB\u05EA\u05DD",null,'kpi-b'));
+      g.appendChild(mkKpi(th.toFixed(1),"\u05E1\"\u05DE","\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF",null,'kpi-g'));
+      g.appendChild(mkKpi(Math.round(P.sw(15)),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-r'));
+      f.appendChild(g);f.appendChild(el('div',{cls:'vrd vg',txt:'\u2705 \u05E6\u05E4\u05D9\u05E4\u05D5\u05EA \u05E7\u05D9\u05E6\u05D5\u05E0\u05D9\u05EA ('+Math.round(d)+') \u2014 \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E2\u05E7\u05D1\u05D5\u05EA, \u05DE\u05D8\u05E2\u05E0\u05D9\u05DD, \u05D5\u05D7\u05E4\u05E6\u05D9\u05DD \u05E7\u05D8\u05E0\u05D9\u05DD. \u05E8\u05E6\u05D5\u05E2\u05D4 \u05E6\u05E8\u05D4 \u05DE\u05D0\u05D5\u05D3!'}));
+      f.appendChild(el('p',{stl:'margin-top:8px;color:#95a5a6;font-size:.82em',txt:'\u05E1\u05D9\u05DB\u05D5\u05DF \u05E8\u05E2\u05E9 \u05DE\u05E8\u05D7\u05E4\u05DF. \u05DE\u05EA\u05D0\u05D9\u05DD \u05DC\u05E9\u05D1\u05D9\u05DC \u05D1\u05D5\u05D3\u05D3 \u05D1\u05DC\u05D1\u05D3. \u05D3\u05D5\u05E8\u05E9 baseline + change detection.'}));
+      return f;}},
+  search:{t:'\u{1F50D} \u05D7\u05D9\u05E4\u05D5\u05E9 \u05DE\u05DE\u05D5\u05E7\u05D3',d:'\u05D0\u05D7\u05E8\u05D9 \u05D4\u05EA\u05E8\u05E2\u05D4 \u2014 \u05E1\u05E8\u05D9\u05E7\u05D4 \u05DE\u05E4\u05D5\u05E8\u05D8\u05EA',p:'40 \u05DE\', 5 \u05DE\'/\u05E9, 100kHz, NR, 50% \u05D7\u05E4\u05D9\u05E4\u05D4',
+    b:function(){var d=P.dens(0,5,40,'nonrep',50);var th=P.thick(40);
+      var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+      g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,'kpi-g'));
+      g.appendChild(mkKpi(Math.round(P.maxR(.25,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD",null,'kpi-g'));
+      g.appendChild(mkKpi(th.toFixed(1),"\u05E1\"\u05DE","\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF",null,'kpi-b'));
+      g.appendChild(mkKpi(Math.round(P.sw(40)),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-o'));
+      f.appendChild(g);f.appendChild(el('div',{cls:'vrd vg',txt:'\u2705 \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD \u05D5\u05D7\u05E4\u05E6\u05D9\u05DD \u05D0\u05DE\u05D9\u05DF. \u05E2\u05E7\u05D1\u05D5\u05EA \u05D1\u05E7\u05E8\u05E7\u05E2 \u05E8\u05DB\u05D4 \u05D1\u05DC\u05D1\u05D3.'}));
+      return f;}},
+  patrol:{t:'\u{1F6E1}\uFE0F \u05E1\u05D9\u05D5\u05E8 \u05D2\u05D1\u05D5\u05DC',d:'\u05E1\u05E8\u05D9\u05E7\u05D4 \u05E9\u05D2\u05E8\u05EA\u05D9\u05EA \u05E9\u05DC \u05E9\u05D1\u05D9\u05DC \u05D4\u05D1\u05D9\u05D8\u05D7\u05D5\u05DF',p:'60 \u05DE\', 8 \u05DE\'/\u05E9, 100kHz, NR',
+    b:function(){var d=P.dens(0,8,60,'nonrep',30);
+      var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+      g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,d>=25?'kpi-g':'kpi-o'));
+      g.appendChild(mkKpi(Math.round(P.maxR(.55,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05E8\u05DB\u05D1",null,'kpi-g'));
+      g.appendChild(mkKpi(Math.round(P.maxR(.25,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD",null,'kpi-g'));
+      g.appendChild(mkKpi(Math.round(P.sw(60)),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-b'));
+      f.appendChild(g);f.appendChild(el('div',{cls:'vrd '+(d>=12?'vg':'vp'),txt:d>=25?'\u2705 \u05E8\u05DB\u05D1+\u05D0\u05D3\u05DD+\u05D7\u05E4\u05E6\u05D9\u05DD. \u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05E8\u05E7 \u05D1\u05E7\u05E8\u05E7\u05E2 \u05E8\u05DB\u05D4.':'\u26A0\uFE0F \u05E8\u05DB\u05D1+\u05D0\u05D3\u05DD. \u05D7\u05E4\u05E6\u05D9\u05DD \u05E7\u05D8\u05E0\u05D9\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9.'}));
+      return f;}},
+  vegetation:{t:'\u{1F333} \u05D0\u05D6\u05D5\u05E8 \u05DE\u05D9\u05D5\u05E2\u05E8',d:'\u05D7\u05D3\u05D9\u05E8\u05EA \u05E6\u05DE\u05D7\u05D9\u05D9\u05D4 \u05E2\u05DD 16 \u05D4\u05D7\u05D6\u05E8\u05D5\u05EA',p:'80 \u05DE\', 8 \u05DE\'/\u05E9, Star-Shaped',
+    b:function(){var d=P.dens(0,8,80,'star',40);
+      var f=document.createDocumentFragment();
+      var tbl=el('table',{cls:'mt',stl:'margin:10px 0'});
+      var th=el('thead');th.appendChild(mkRow(['\u05E6\u05DE\u05D7\u05D9\u05D9\u05D4','LAI','\u05D7\u05D3\u05D9\u05E8\u05D4 (16 ret)','\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA \u05E7\u05E8\u05E7\u05E2','\u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD']));tbl.appendChild(th);
+      var tb=el('tbody');
+      [{n:'\u05E9\u05D9\u05D7\u05D9\u05DD',l:1,k:.4},{n:'\u05D7\u05D5\u05E8\u05E9',l:2.5,k:.4},{n:'\u05D9\u05E2\u05E8 \u05D1\u05D9\u05E0\u05D5\u05E0\u05D9',l:4,k:.5},{n:'\u05D9\u05E2\u05E8 \u05E6\u05E4\u05D5\u05E3',l:6,k:.5}].forEach(function(v){
+        var pen=Math.min(95,Math.exp(-v.k*v.l)*100*1.98);var gd=d*pen/100;
+        tb.appendChild(mkRow([v.n,{txt:v.l+'',dir:'ltr'},{txt:pen.toFixed(0)+'%',dir:'ltr'},{txt:gd.toFixed(1),dir:'ltr'},{txt:pen>40?'\u05E1\u05D1\u05D9\u05E8\u05D4':pen>15?'\u05DE\u05D5\u05D2\u05D1\u05DC\u05EA':'\u05E7\u05E9\u05D4',cls:pen>40?'dh':pen>15?'dm':'dl'}]));
+      });tbl.appendChild(tb);f.appendChild(tbl);
+      f.appendChild(el('div',{cls:'vrd vp',txt:'\u26A0\uFE0F 16 \u05D4\u05D7\u05D6\u05E8\u05D5\u05EA \u2014 \u05D7\u05D3\u05D9\u05E8\u05D4 \u05DE\u05E6\u05D5\u05D9\u05E0\u05EA. \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD \u05E2\u05D5\u05DE\u05D3 \u05D1\u05D9\u05E2\u05E8 \u05E4\u05EA\u05D5\u05D7+\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9 \u05D1\u05DC\u05D1\u05D3. \u05D9\u05E2\u05E8 \u05E6\u05E4\u05D5\u05E3 \u2014 \u05DE\u05D0\u05EA\u05D2\u05E8.'}));
+      return f;}},
+  night:{t:'\u{1F319} \u05DC\u05D9\u05DC\u05D4',d:'LiDAR \u05D0\u05E7\u05D8\u05D9\u05D1\u05D9 \u2014 \u05D1\u05D9\u05E6\u05D5\u05E2\u05D9\u05DD \u05D6\u05D4\u05D9\u05DD \u05DC\u05D9\u05D5\u05DD',p:'\u05D6\u05D4\u05D4 \u05DC\u05D9\u05D5\u05DD. \u05DC\u05D9\u05D9\u05D6\u05E8 1535nm \u05D1\u05DC\u05EA\u05D9 \u05E0\u05E8\u05D0\u05D4.',
+    b:function(){var f=document.createDocumentFragment();var g=el('div',{cls:'g3',stl:'margin:10px 0'});
+      g.appendChild(mkKpi('100%','','\u05D1\u05D9\u05E6\u05D5\u05E2\u05D9 LiDAR \u05D1\u05DC\u05D9\u05DC\u05D4','\u{1F4CB}','kpi-g'));
+      g.appendChild(mkKpi('0%','','\u05DE\u05E6\u05DC\u05DE\u05D4 RGB \u05D1\u05DC\u05D9\u05DC\u05D4','\u{1F4CB}','kpi-r'));
+      g.appendChild(mkKpi('1535','nm','\u05D1\u05DC\u05EA\u05D9 \u05E0\u05E8\u05D0\u05D4 \u05DC\u05E2\u05D9\u05DF','\u{1F4CB}','kpi-b'));
+      f.appendChild(g);f.appendChild(el('div',{cls:'vrd vg',txt:'\u2705 \u05D1\u05D9\u05E6\u05D5\u05E2\u05D9\u05DD \u05D6\u05D4\u05D9\u05DD \u05DC\u05D9\u05D5\u05DD. \u05D9\u05EA\u05E8\u05D5\u05DF: \u05D0\u05D9\u05DF \u05D7\u05E9\u05D9\u05E4\u05EA \u05E8\u05D7\u05E4\u05DF, \u05D0\u05D9\u05DF RGB.'}));
+      return f;}},
+  wide:{t:'\u{1F4E1} \u05E1\u05E8\u05D9\u05E7\u05D4 \u05E0\u05E8\u05D7\u05D1\u05EA',d:'\u05DE\u05D9\u05E4\u05D5\u05D9 10+ \u05E7\u05DE"\u05E8 \u05DC\u05D1\u05E0\u05D9\u05D9\u05EA baseline',p:'150 \u05DE\', 15 \u05DE\'/\u05E9, 350kHz, Linear',
+    b:function(){var d=P.dens(1,15,150,'linear',30);var sw=P.sw(150);var cov=(sw*15*3600)/1e6;
+      var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+      g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,'kpi-b'));
+      g.appendChild(mkKpi(Math.round(sw),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-g'));
+      g.appendChild(mkKpi(cov.toFixed(1),"\u05E7\u05DE\"\u05E8/\u05E9","\u05E7\u05E6\u05D1 \u05DB\u05D9\u05E1\u05D5\u05D9",null,'kpi-g'));
+      g.appendChild(mkKpi('36-40',"\u05D3\u05E7'","\u05D6\u05DE\u05DF \u05D8\u05D9\u05E1\u05D4",null,'kpi-o'));
+      f.appendChild(g);f.appendChild(el('div',{cls:'vrd vp',txt:'\u26A0\uFE0F \u05DE\u05D9\u05E4\u05D5\u05D9 + baseline. \u05E8\u05DB\u05D1 \u2014 \u05DB\u05DF. \u05D0\u05D3\u05DD/\u05D7\u05E4\u05E6\u05D9\u05DD \u2014 \u05DC\u05D0.'}));
+      return f;}}
+};
+
+function buildSC(){var c=document.getElementById('sc-cards');var first=true;
+  Object.keys(SC).forEach(function(k){var s=SC[k];
+    var card=el('div',{cls:'sc'+(first?' on':'')});
+    card.appendChild(el('h4',{txt:s.t}));card.appendChild(el('p',{txt:s.d}));
+    card.appendChild(el('p',{txt:s.p,stl:'color:var(--blue);font-size:.72em;margin-top:4px'}));
+    card.onclick=function(){document.querySelectorAll('.sc').forEach(function(e){e.classList.remove('on');});card.classList.add('on');showSC(k);};
+    c.appendChild(card);first=false;
+  });
+}
+function showSC(k){var s=SC[k];var d=clr('sc-detail');d.appendChild(el('div',{cls:'ct',txt:s.t}));d.appendChild(s.b());}
+
+// ════════════════════════════════════════
+// SENSOR EDITOR
+// ════════════════════════════════════════
+var SPEC_FIELDS=[
+  {k:'r10',l:'\u05D8\u05D5\u05D5\u05D7 \u05DE\u05E7\u05E1 @10% (m)',v:950},
+  {k:'r80',l:'\u05D8\u05D5\u05D5\u05D7 \u05DE\u05E7\u05E1 @80% (m)',v:2000},
+  {k:'nm',l:'\u05D0\u05D5\u05E8\u05DA \u05D2\u05DC (nm)',v:1535},
+  {k:'div',l:'\u05D4\u05EA\u05E4\u05E9\u05D8\u05D5\u05EA \u05E7\u05E8\u05DF (mrad)',v:0.25},
+  {k:'fov',l:'FOV \u05D0\u05D5\u05E4\u05E7\u05D9 (\u00B0)',v:80},
+  {k:'max_pts',l:'\u05DE\u05E7\u05E1 \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA/\u05E9',v:2000000},
+  {k:'prr0',l:'PRR 1 (kHz)',v:100},{k:'prr1',l:'PRR 2 (kHz)',v:350},
+  {k:'prr2',l:'PRR 3 (kHz)',v:1000},{k:'prr3',l:'PRR 4 (kHz)',v:2000},
+  {k:'ret0',l:'\u05D4\u05D7\u05D6\u05E8\u05D5\u05EA PRR1',v:16},{k:'ret1',l:'\u05D4\u05D7\u05D6\u05E8\u05D5\u05EA PRR2',v:16},
+  {k:'ret2',l:'\u05D4\u05D7\u05D6\u05E8\u05D5\u05EA PRR3',v:8},{k:'ret3',l:'\u05D4\u05D7\u05D6\u05E8\u05D5\u05EA PRR4',v:4}
+];
+function buildSpecEditor(){var c=document.getElementById('spec-fields');
+  SPEC_FIELDS.forEach(function(f){
+    var d=el('div');d.appendChild(el('label',{txt:f.l}));
+    var inp=el('input',{type:'number',id:'sf-'+f.k});inp.value=f.v;inp.step='any';d.appendChild(inp);c.appendChild(d);
+  });
+}
+function resetSpec(){
+  S=JSON.parse(JSON.stringify(S_DEF));
+  SPEC_FIELDS.forEach(function(f){document.getElementById('sf-'+f.k).value=f.v;});
+  recalcConstants();upRange();upDens();
+}
+function applySpec(){
+  S.r10=+document.getElementById('sf-r10').value;
+  S.r80=+document.getElementById('sf-r80').value;
+  S.nm=+document.getElementById('sf-nm').value;
+  S.div=+document.getElementById('sf-div').value;
+  S.div_r=S.div/1000;
+  S.fov=+document.getElementById('sf-fov').value;
+  S.max_pts=+document.getElementById('sf-max_pts').value;
+  for(var i=0;i<4;i++){
+    S.prr_k[i]=+document.getElementById('sf-prr'+i).value;
+    S.prr_h[i]=S.prr_k[i]*1000;
+    S.ret[i]=+document.getElementById('sf-ret'+i).value;
+  }
+  recalcConstants();upRange();upDens();
+}
+function recalcConstants(){
+  P._C10=Math.pow(S.r10,4)/.10;P._C80=Math.pow(S.r80,4)/.80;
+}
+
+// ════════════════════════════════════════
+// PDF PARSER
+// ════════════════════════════════════════
+function handlePDF(input){
+  if(!input.files||!input.files[0])return;
+  var file=input.files[0];
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var data=new Uint8Array(e.target.result);
+    if(typeof pdfjsLib==='undefined'){
+      showPDFResult('\u26A0\uFE0F \u05E1\u05E4\u05E8\u05D9\u05D9\u05EA PDF.js \u05DC\u05D0 \u05E0\u05D8\u05E2\u05E0\u05D4. \u05D4\u05D6\u05DF \u05E4\u05E8\u05DE\u05D8\u05E8\u05D9\u05DD \u05D9\u05D3\u05E0\u05D9\u05EA.');return;}
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.getDocument(data).promise.then(function(pdf){
+      var allText='';var pages=pdf.numPages;var done=0;
+      for(var i=1;i<=Math.min(pages,10);i++){
+        pdf.getPage(i).then(function(page){
+          page.getTextContent().then(function(tc){
+            tc.items.forEach(function(item){allText+=item.str+' ';});
+            done++;
+            if(done>=Math.min(pages,10))parsePDFText(allText);
+          });
+        });
+      }
+    });
+  };reader.readAsArrayBuffer(file);
+}
+
+function parsePDFText(txt){
+  var found=[];
+  var patterns=[
+    {re:/(\d{3,4})\s*m[^a-z]*(?:@|at)\s*10\s*%/i,k:'r10',l:'\u05D8\u05D5\u05D5\u05D7 @10%'},
+    {re:/(\d{3,4})\s*m[^a-z]*(?:@|at)\s*80\s*%/i,k:'r80',l:'\u05D8\u05D5\u05D5\u05D7 @80%'},
+    {re:/(\d{3,4})\s*nm/i,k:'nm',l:'\u05D0\u05D5\u05E8\u05DA \u05D2\u05DC'},
+    {re:/(\d+\.?\d*)\s*mrad/i,k:'div',l:'\u05D4\u05EA\u05E4\u05E9\u05D8\u05D5\u05EA \u05E7\u05E8\u05DF'},
+    {re:/FOV[:\s]*(\d+)/i,k:'fov',l:'FOV'},
+    {re:/(\d[\d,]+)\s*(?:pts|points)\s*(?:per|\/)\s*(?:sec|s)/i,k:'max_pts',l:'\u05E0\u05E7\u05D5\u05D3\u05D5\u05EA/\u05E9'}
+  ];
+  patterns.forEach(function(p){
+    var m=txt.match(p.re);
+    if(m){var v=parseFloat(m[1].replace(/,/g,''));found.push({k:p.k,l:p.l,v:v});
+      var inp=document.getElementById('sf-'+p.k);if(inp)inp.value=v;}
+  });
+  if(found.length>0){
+    var msg='\u2705 \u05D7\u05D5\u05DC\u05E6\u05D5 '+found.length+' \u05E4\u05E8\u05DE\u05D8\u05E8\u05D9\u05DD:\n';
+    found.forEach(function(f){msg+=f.l+': '+f.v+'\n';});
+    showPDFResult(msg+'\n\u05DC\u05D7\u05E5 "\u05D4\u05D7\u05DC \u05E9\u05D9\u05E0\u05D5\u05D9\u05D9\u05DD" \u05DC\u05E2\u05D3\u05DB\u05D5\u05DF \u05D4\u05E1\u05D9\u05DE\u05D5\u05DC\u05E6\u05D9\u05D4.');
+  } else {
+    showPDFResult('\u26A0\uFE0F \u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E4\u05E8\u05DE\u05D8\u05E8\u05D9\u05DD \u05DE\u05D5\u05DB\u05E8\u05D9\u05DD. \u05D4\u05D6\u05DF \u05D9\u05D3\u05E0\u05D9\u05EA.');
+  }
+}
+function showPDFResult(msg){var d=clr('pdf-result');d.appendChild(el('pre',{txt:msg,stl:'color:var(--txt2);font-size:.82em;white-space:pre-wrap;font-family:inherit'}));}
+
+// ════════════════════════════════════════
+// ASSUMPTIONS TAB
+// ════════════════════════════════════════
+function buildInfo(){
+  var specData=[
+    ['\u05D0\u05D5\u05E8\u05DA \u05D2\u05DC','1535 nm','DJI L3 Spec'],
+    ['\u05D8\u05D5\u05D5\u05D7 @10%','950 \u05DE\' @ 100kHz','DJI L3 Spec'],
+    ['\u05D8\u05D5\u05D5\u05D7 @80%','2,000 \u05DE\' @ 100kHz','DJI L3 Spec'],
+    ['\u05D4\u05EA\u05E4\u05E9\u05D8\u05D5\u05EA \u05E7\u05E8\u05DF','0.25 mrad','DJI L3 Spec'],
+    ['PRR','100/350/1,000/2,000 kHz','DJI L3 Spec'],
+    ['\u05D4\u05D7\u05D6\u05E8\u05D5\u05EA','16/16/8/4','DJI L3 Spec'],
+    ['FOV','80\u00B0','DJI L3 Spec'],
+    ['\u05D3\u05D9\u05D5\u05E7 120\u05DE\'','3 \u05E1"\u05DE \u05D0\u05E0\u05DB\u05D9, 4 \u05E1"\u05DE \u05D0\u05D5\u05E4\u05E7\u05D9','DJI L3 Spec'],
+    ['\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF 120\u05DE\'','1.2 \u05E1"\u05DE (1\u03C3)','DJI L3 Spec'],
+    ['\u05DB\u05EA\u05DD \u05DC\u05D9\u05D9\u05D6\u05E8','41mm@120m, 86mm@300m','DJI L3 Spec'],
+    ['\u05DE\u05E7\u05E1 \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA','2,000,000/s','DJI L3 Spec']
+  ];
+  var stb=clr('tb-spec');specData.forEach(function(r){stb.appendChild(mkRow(r));});
+
+  var estData=[
+    ['\u05E8\u05E4\u05DC\u05E7\u05D8\u05D9\u05D1\u05D9\u05D5\u05EA \u05E8\u05DB\u05D1','40-70%','\u05E1\u05E4\u05E8\u05D5\u05EA','\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA'],
+    ['\u05E8\u05E4\u05DC\u05E7\u05D8\u05D9\u05D1\u05D9\u05D5\u05EA \u05D0\u05D3\u05DD','15-40%','\u05E1\u05E4\u05E8\u05D5\u05EA, \u05EA\u05DC\u05D5\u05D9 \u05D1\u05D2\u05D3','\u05D2\u05D1\u05D5\u05D4\u05D4'],
+    ['\u05E2\u05D5\u05DE\u05E7 \u05D8\u05D1\u05D9\u05E2\u05EA \u05E8\u05D2\u05DC','1-3 \u05E1"\u05DE','forensic lit','\u05E7\u05E8\u05D9\u05D8\u05D9\u05EA'],
+    ['\u05E0\u05E7\u05D5\u05D3\u05D5\u05EA \u05DE\u05D9\u05DF \u05DC\u05D6\u05D9\u05D4\u05D5\u05D9','3-5','\u05E1\u05E4\u05E8\u05D5\u05EA + \u05E0\u05D9\u05E1\u05D5\u05D9','\u05D2\u05D1\u05D5\u05D4\u05D4'],
+    ['PRR\u2192\u05D8\u05D5\u05D5\u05D7','(700/950)^4=0.294','spec: L3 700m@350kHz','\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA'],
+    ['\u05D3\u05D9\u05D5\u05E7 \u05D0\u05E0\u05DB\u05D9 @50m','~7.3 \u05E1"\u05DE RMSE','Sphere Drones L2 test','\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA']
+  ];
+  var etb=clr('tb-est');estData.forEach(function(r){etb.appendChild(mkRow(r));});
+
+  var rd=clr('research-refs');
+  var refs=[
+    'Ouster OS1-32 (PMC 2023): \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD Precision 95.4%, Recall 95.1%',
+    'DJI L2 (ScienceDirect 2025): \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D2\u05D5\u05E3 \u05DE\u05EA\u05D7\u05EA \u05E6\u05DE\u05D7\u05D9\u05D9\u05D4 \u05E6\u05E4\u05D5\u05E4\u05D4',
+    'MIT Lincoln Lab (2017): Change Detection \u05DC\u05D0\u05D1\u05D8\u05D7\u05EA \u05D2\u05D1\u05D5\u05DC \u2014 CBP',
+    'Quanergy: LiDAR \u05D1\u05DE\u05D3\u05D1\u05E8 \u2014 \u05D7\u05D3\u05D9\u05E8\u05D4 \u05DE\u05D5\u05E2\u05D8\u05EA \u05D0\u05D1\u05E7/\u05E8\u05D5\u05D7',
+    'ROCK Robotic: 1535nm \u05E4\u05D9 40 \u05D4\u05E1\u05E4\u05E7 \u05DE-905nm \u05D1\u05D1\u05D8\u05D9\u05D7\u05D5\u05EA, \u05D0\u05D9\u05D3\u05D9\u05D0\u05DC\u05D9 \u05DC\u05DE\u05D3\u05D1\u05E8',
+    'PMC 2022: CNN \u05E9\u05D5\u05DE\u05E8 90%+ \u05D3\u05D9\u05D5\u05E7 \u05D1-10% \u05E6\u05E4\u05D9\u05E4\u05D5\u05EA',
+    'Sphere Drones: L2 \u05D3\u05D9\u05D5\u05E7 7.3cm @50m, L1 10.9cm @50m'
+  ];
+  refs.forEach(function(r){rd.appendChild(el('div',{txt:'\u{1F4DA} '+r,stl:'font-size:.82em;color:var(--txt2);padding:4px 0;border-bottom:1px solid var(--brd)'}));});
+
+  var fd=clr('formulas-div');
+  ['Range: P_r = (P_t \u00D7 A_r \u00D7 \u03C1 \u00D7 \u03B7 \u00D7 \u03B7_atm\u00B2) / (\u03C0 \u00D7 R\u2074 \u00D7 \u03B2\u00B2)',
+   'Max Range: R = [C \u00D7 \u03C1]^(1/4) | implicit with atmosphere',
+   'Atmosphere: \u03B7 = exp(-\u03B1R), \u03B1 = 3.91/V \u00D7 (550/\u03BB)^q',
+   'Density: d = PRR / (v \u00D7 2H \u00D7 tan(\u03B8/2) \u00D7 area_factor)',
+   'Footprint: D = H \u00D7 \u03B2',
+   'Vegetation: P = exp(-k \u00D7 LAI) \u00D7 returns_factor'
+  ].forEach(function(f){fd.appendChild(el('p',{txt:f}));});
+}
+
+// ════════════════════════════════════════
+// PRESETS
+// ════════════════════════════════════════
+function setP(n,btn){
+  var p={ultra:{p:0,w:'clear',a:15},low:{p:0,w:'clear',a:40},patrol:{p:0,w:'clear',a:60},high:{p:1,w:'clear',a:150}};
+  var s=p[n];document.getElementById('s-prr').value=s.p;document.getElementById('s-wx').value=s.w;document.getElementById('s-alt').value=s.a;
+  document.querySelectorAll('.pb').forEach(function(b){b.classList.remove('on');});if(btn)btn.classList.add('on');upRange();
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',function(){
+  buildTabs();setHelps();initCh();buildSpecEditor();buildSC();buildInfo();
+  upRange();upDens();showSC('ultra_low');
+
+  // Drag-drop for PDF
+  var zone=document.getElementById('pdf-zone');
+  zone.addEventListener('dragover',function(e){e.preventDefault();zone.style.borderColor='var(--blue)';});
+  zone.addEventListener('dragleave',function(){zone.style.borderColor='var(--brd)';});
+  zone.addEventListener('drop',function(e){e.preventDefault();zone.style.borderColor='var(--brd)';
+    if(e.dataTransfer.files.length>0){document.getElementById('pdf-input').files=e.dataTransfer.files;handlePDF(document.getElementById('pdf-input'));}});
+
+  // Validation
+  console.log('[V] Range@10%: '+Math.round(P.maxR(.10,0,'clear'))+'m (spec:950)');
+  console.log('[V] Range@80%: '+Math.round(P.maxR(.80,0,'clear'))+'m (spec:2000)');
+  console.log('[V] Footprint@120m: '+(P.fp(120)*1000).toFixed(1)+'mm (spec:41mm, diff=aperture)');
+});
+</script>
+</body>
+</html>
