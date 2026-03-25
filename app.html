@@ -262,15 +262,18 @@ var WX={
   haze:{n:"\u05D0\u05D5\u05D1\u05DA",v:4,a:.25},fog_light:{n:"\u05E2\u05E8\u05E4\u05DC \u05E7\u05DC",v:2,a:.55},
   fog:{n:"\u05E2\u05E8\u05E4\u05DC",v:1,a:1.2},rain_light:{n:"\u05D2\u05E9\u05DD \u05E7\u05DC",v:6,a:.17},
   rain:{n:"\u05D2\u05E9\u05DD \u05D1\u05D9\u05E0\u05D5\u05E0\u05D9",v:3,a:.35},rain_heavy:{n:"\u05D2\u05E9\u05DD \u05DB\u05D1\u05D3",v:2,a:.55},
-  dust:{n:"\u05D0\u05D1\u05E7/\u05D7\u05DE\u05E1\u05D9\u05DF",v:3,a:.30}
+  dust:{n:"\u05D0\u05D1\u05E7/\u05D7\u05DE\u05E1\u05D9\u05DF",v:3,a:.34}
 };
 
 // ════════════════════════════════════════
 // PHYSICS v2 — research-calibrated
 // ════════════════════════════════════════
 var P={
-  _C10:Math.pow(950,4)/.10, _C80:Math.pow(2000,4)/.80,
-  sc:function(pi){var r=[1,.294,.028,.007];return((this._C10+this._C80)/2)*r[pi];},
+  // CONSERVATIVE: use C10 (calibrated to 10% spec) to avoid overestimating detection range
+  // C10 gives exact 950m@10%. C80 would give 2000m@80% but inflates low-refl targets by 15%.
+  // For security tools: always conservative. High-refl targets show ~20% less than spec (safe).
+  _C:Math.pow(950,4)/.10,
+  sc:function(pi){var r=[1,.294,.028,.007];return this._C*r[pi];},
   al:function(wk){return WX[wk].a/1000;},
   maxR:function(rf,pi,wk){
     var C=this.sc(pi),tgt=C*rf,a=this.al(wk);
@@ -283,11 +286,14 @@ var P={
   dens:function(pi,spd,alt,scan,ovl){
     var prr=Math.min(S.prr_h[pi],S.max_pts);
     var sw=2*alt*Math.tan(S.fov*Math.PI/360);
-    var af=1;if(scan!=='linear')af=S.fov_v[scan]/S.fov_v.linear;
+    // Realistic area factors based on actual scan distribution
+    var af=1; // linear
+    if(scan==='star') af=8;
+    if(scan==='nonrep') af=6;
     return(prr*(1+ovl/100))/(spd*sw*af);
   },
   sw:function(a){return 2*a*Math.tan(S.fov*Math.PI/360);},
-  fp:function(a){return a*S.div_r;},
+  fp:function(a){return a*S.div_r + 0.011;},
   sp:function(d){return d>0?1/Math.sqrt(d):999;},
   pts:function(t,d){return d*t.a;},
   // Research-calibrated cloud thickness model
@@ -298,12 +304,11 @@ var P={
     if(a<=300)return 1.2+(a-120)*(2.0-1.2)/(300-120);
     return 2.0+(a-300)*0.015;
   },
-  // Research: vertical accuracy degrades ~linearly with altitude
-  // L2 test: 7.3cm @50m → ~3cm@120m spec → extrapolate
+  // L3 spec: 3cm@120m, 5cm@300m
+  // Extrapolate: roughly linear
   vAcc:function(a){
-    if(a<=20)return 1.5;if(a<=50)return 1.5+(a-20)*5.8/30;
-    if(a<=120)return 7.3+(a-50)*(-4.3)/70;
-    return 3+(a-120)*0.02;
+    if(a<=120) return Math.max(0.5, 3 * (a/120));
+    return 3 + (a-120) * (5-3)/(300-120);
   },
   score:function(t,alt,pi,spd,scan,ovl,wk){
     var d=this.dens(pi,spd,alt,scan,ovl);
@@ -437,10 +442,17 @@ function upRange(){
   CH.range.update();
 
   var box=clr('kpi-range');
+  box.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:12px';
   var labs=['\u05D8\u05D5\u05D5\u05D7 \u05E8\u05DB\u05D1','\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD','\u05D8\u05D5\u05D5\u05D7 \u05D7\u05E4\u05E5','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
   ranges.forEach(function(r,i){
     var ok=r>alt;
-    box.appendChild(mkKpi(r,"\u05DE'",labs[i],'\u{1F522}',ok?'kpi-g':'kpi-r'));
+    if(i===3){ // tracks - show density verdict, not range
+      var dd=P.dens(pi,8,alt,'nonrep',30);
+      var trackOk=dd>=25;
+      box.appendChild(mkKpi(trackOk?'\u2713':'\u2717','',labs[i]+' ('+Math.round(dd)+' \u05E0\u05E7\'/\u05DE"\u05E8)','\u26A0\uFE0F',trackOk?'kpi-g':dd>=12?'kpi-o':'kpi-r'));
+    } else {
+      box.appendChild(mkKpi(r,"\u05DE'",labs[i],'\u{1F522}',ok?'kpi-g':'kpi-r'));
+    }
   });
 
   // Altitude insight
@@ -482,6 +494,7 @@ function upDens(){
   var sw=P.sw(alt);var fp=P.fp(alt)*100;var sp=P.sp(d)*100;
 
   var box=clr('kpi-dens');
+  box.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:12px';
   box.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",'\u{1F522}',d>=25?'kpi-g':d>=12?'kpi-o':'kpi-r'));
   box.appendChild(mkKpi(Math.round(sw),"\u05DE'","\u05E8\u05D5\u05D7\u05D1 \u05E8\u05E6\u05D5\u05E2\u05D4",'\u{1F522}','kpi-b'));
   box.appendChild(mkKpi(fp.toFixed(1),"\u05E1\"\u05DE","\u05DB\u05EA\u05DD \u05DC\u05D9\u05D9\u05D6\u05E8",'\u{1F522}','kpi-o'));
@@ -693,7 +706,7 @@ function applySpec(){
   recalcConstants();upRange();upDens();
 }
 function recalcConstants(){
-  P._C10=Math.pow(S.r10,4)/.10;P._C80=Math.pow(S.r80,4)/.80;
+  P._C=Math.pow(S.r10,4)/.10;
 }
 
 // ════════════════════════════════════════
@@ -813,7 +826,7 @@ function setP(n,btn){
 // ════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',function(){
   buildTabs();setHelps();initCh();buildSpecEditor();buildSC();buildInfo();
-  upRange();upDens();showSC('ultra_low');
+  upRange();upDens();upMat();upWx();showSC('ultra_low');
 
   // Drag-drop for PDF
   var zone=document.getElementById('pdf-zone');
@@ -825,7 +838,13 @@ window.addEventListener('DOMContentLoaded',function(){
   // Validation
   console.log('[V] Range@10%: '+Math.round(P.maxR(.10,0,'clear'))+'m (spec:950)');
   console.log('[V] Range@80%: '+Math.round(P.maxR(.80,0,'clear'))+'m (spec:2000)');
-  console.log('[V] Footprint@120m: '+(P.fp(120)*1000).toFixed(1)+'mm (spec:41mm, diff=aperture)');
+  console.log('[V] Footprint@120m: '+(P.fp(120)*1000).toFixed(1)+'mm (spec:41mm)');
+  console.log('[V] Footprint@300m: '+(P.fp(300)*1000).toFixed(1)+'mm (spec:86mm)');
+  console.log('[V] Density@120m,8m/s,100k,NR,30%: '+P.dens(0,8,120,'nonrep',30).toFixed(1)+' pts/m2');
+  console.log('[V] vAcc@120m: '+P.vAcc(120).toFixed(1)+'cm (spec:3cm)');
+  console.log('[V] vAcc@300m: '+P.vAcc(300).toFixed(1)+'cm (spec:5cm)');
+  console.log('[V] CloudThick@120m: '+P.thick(120).toFixed(1)+'cm (spec:1.2cm)');
+  console.log('[V] Swath@120m: '+P.sw(120).toFixed(0)+'m');
 });
 </script>
 </body>
