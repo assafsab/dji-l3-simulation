@@ -122,7 +122,7 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
         </div></div>
     </div>
     <div class="card">
-      <div class="ct">DRI — גובה מקסימלי לגילוי / זיהוי סוג / הכרה <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="ct">DRI — גילוי (Detection) לפי חיישן ותנאים <span class="tag" style="background:var(--green)">🔢</span></div>
       <div class="cc"><canvas id="chRange"></canvas></div>
     </div>
   </div>
@@ -376,6 +376,61 @@ var P={
       if(idOK)res.id=h;
     }
     return res;
+  },
+  // Camera DRI — Johnson Criteria adapted for nadir (top-down) view
+  // L3 camera: 100MP (12288x8192), 4/3" CMOS, ~14mm real focal length
+  // pixel_pitch ≈ 1.41μm, GSD = H × 0.0001007
+  // Johnson: Det=2px, Rec=8px, ID=12px (across critical dimension)
+  // From nadir: use TOP-DOWN dimensions (w×l), not height
+  camGSD: function(alt) { return alt * 0.0001007; }, // meters per pixel
+  camDRI: function(t, alt) {
+    var gsd = this.camGSD(alt);
+    if (gsd <= 0) return {det:false,rec:false,id:false,px_w:0,px_l:0};
+    // Top-down view: pixels across each dimension
+    var px_w = t.w / gsd;
+    var px_l = t.l / gsd;
+    var px_max = Math.max(px_w, px_l);
+    var px_min = Math.min(px_w, px_l);
+    // For tracks: camera can detect by texture/color, not elevation
+    // Assume tracks visible if GSD < 3cm (can see disturbed soil pattern)
+    var isTrack = t.hg < 0;
+    return {
+      det: isTrack ? (gsd < 0.03) : (px_max >= 2),
+      rec: isTrack ? (gsd < 0.02) : (px_min >= 4),    // need 4px across narrow dim for shape
+      id:  isTrack ? (gsd < 0.01) : (px_min >= 8),     // need 8px for details
+      px_w: Math.round(px_w * 10) / 10,
+      px_l: Math.round(px_l * 10) / 10,
+      gsd_cm: Math.round(gsd * 1000) / 10
+    };
+  },
+  // Camera DRI: max altitude for each level
+  camDRIAlt: function(t) {
+    var res = {det: 10, rec: 10, id: 10};
+    for (var h = 10; h <= 500; h++) {
+      var c = this.camDRI(t, h);
+      if (c.det) res.det = h;
+      if (c.rec) res.rec = h;
+      if (c.id) res.id = h;
+    }
+    return res;
+  },
+  // Combined DRI: best of LiDAR and Camera at each level
+  // Night mode: camera = 0, LiDAR only
+  // Day mode: take the better (higher altitude) of each
+  combinedDRI: function(t, pi, spd, scan, ovl, wk, isNight) {
+    var lidar = this.dri(t, pi, spd, scan, ovl, wk);
+    if (isNight) return {det: lidar.det, rec: lidar.rec, id: lidar.id, source_det:'LiDAR', source_rec:'LiDAR', source_id:'LiDAR'};
+    var cam = this.camDRIAlt(t);
+    return {
+      det: Math.max(lidar.det, cam.det),
+      rec: Math.max(lidar.rec, cam.rec),
+      id:  Math.max(lidar.id, cam.id),
+      source_det: lidar.det >= cam.det ? 'LiDAR' : 'Camera',
+      source_rec: lidar.rec >= cam.rec ? 'LiDAR' : 'Camera',
+      source_id:  lidar.id >= cam.id ? 'LiDAR' : 'Camera',
+      lidar: lidar,
+      cam: cam
+    };
   }
 };
 
@@ -394,7 +449,7 @@ function mkRow(cells){var tr=el('tr');cells.forEach(function(c){var td=el('td');
 // HELP TEXTS
 // ════════════════════════════════════════
 var HELPS={
-  range:'<b>\u05DE\u05D4 \u05D4\u05DE\u05E2\u05E8\u05DB\u05EA \u05EA\u05D6\u05D4\u05D4 \u05D1\u05E9\u05D1\u05D9\u05DC\u05D9?</b> \u05D4\u05D2\u05E8\u05E3 \u05DE\u05E8\u05D0\u05D4 \u05DC\u05DB\u05DC \u05DE\u05D8\u05E8\u05D4 \u05D0\u05EA \u05D4\u05D2\u05D5\u05D1\u05D4 \u05D4\u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 \u05DC\u05E9\u05DC\u05D5\u05E9 \u05E8\u05DE\u05D5\u05EA:<ul><li><b style=\"color:#2ecc71\">Detection (\u05D2\u05D9\u05DC\u05D5\u05D9)</b> \u2014 \"\u05DE\u05E9\u05D4\u05D5 \u05E9\u05DD\" \u2014 \u05D4\u05D7\u05D9\u05D9\u05E9\u05DF \u05E8\u05D5\u05D0\u05D4 \u05D7\u05E8\u05D9\u05D2\u05D4</li><li><b style=\"color:#f39c12\">Recognition (\u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2)</b> \u2014 \"\u05D6\u05D4 \u05D1\u05D2\u05D5\u05D3\u05DC \u05E9\u05DC \u05D0\u05D3\u05DD/\u05E8\u05DB\u05D1\" \u2014 \u05DE\u05E1\u05E4\u05D9\u05E7 \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA \u05DC\u05D4\u05D1\u05D7\u05D9\u05DF \u05E6\u05D5\u05E8\u05D4</li><li><b style=\"color:#e74c3c\">Identification (\u05D4\u05DB\u05E8\u05D4)</b> \u2014 \"\u05D6\u05D4 \u05D2\'\u05D9\u05E4 / \u05D0\u05D3\u05DD \u05E2\u05DD \u05EA\u05D9\u05E7\" \u2014 \u05E4\u05D9\u05E8\u05D5\u05D8 \u05D2\u05D1\u05D5\u05D4</li><li>\u05D4-KPI \u05DC\u05DE\u05D8\u05D4 \u05DE\u05E8\u05D0\u05D4 \u05D0\u05D9\u05D6\u05D5 \u05E8\u05DE\u05D4 <b>\u05D0\u05E4\u05E9\u05E8\u05D9\u05EA \u05D1\u05D2\u05D5\u05D1\u05D4 \u05D4\u05E0\u05D1\u05D7\u05E8</b></li></ul>',
+  range:'<b>\u05DE\u05D4 \u05D4\u05DE\u05E2\u05E8\u05DB\u05EA \u05EA\u05D6\u05D4\u05D4?</b> \u05D4\u05D2\u05E8\u05E3 \u05DE\u05E8\u05D0\u05D4 \u05DC\u05DB\u05DC \u05DE\u05D8\u05E8\u05D4 \u05D0\u05EA \u05D4\u05D2\u05D5\u05D1\u05D4 \u05D4\u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 \u05DC\u05D2\u05D9\u05DC\u05D5\u05D9 (Detection) \u05D1-4 \u05DE\u05E6\u05D1\u05D9\u05DD:<ul><li><b style=\"color:#2ecc71\">\u05D9\u05D5\u05DD \u05DE\u05E9\u05D5\u05DC\u05D1</b> \u2014 LiDAR + \u05DE\u05E6\u05DC\u05DE\u05D4 100MP \u05D9\u05D7\u05D3</li><li><b style=\"color:#9b59b6\">\u05DC\u05D9\u05DC\u05D4</b> \u2014 LiDAR \u05D1\u05DC\u05D1\u05D3 (\u05DE\u05E6\u05DC\u05DE\u05D4 \u05DC\u05D0 \u05E2\u05D5\u05D1\u05D3\u05EA!)</li><li>\u05D4-KPI \u05DC\u05DE\u05D8\u05D4 \u05DE\u05E8\u05D0\u05D4: <b>\u05E8\u05DE\u05EA DRI \u05D1\u05D9\u05D5\u05DD</b> + \u05E8\u05DE\u05D4 \u05D1\u05DC\u05D9\u05DC\u05D4</li><li>Johnson Criteria: Det=2px, Rec=8px, ID=12px \u05E2\u05DC \u05D4\u05DE\u05D8\u05E8\u05D4</li></ul>',
   density:'<b>מה עושה הלשונית:</b> מחשבת כמה נקודות LiDAR יפגעו בכל מ"ר של קרקע.<ul><li><b>מהירות נמוכה + גובה נמוך = צפיפות מקסימלית</b></li><li>הגרף מראה את הצפיפות לכל גובה — קווים מקווקווים הם סף הזיהוי למטרות שונות</li><li>הטבלה מראה אם הצפיפות הנוכחית <b>מספיקה לזיהוי</b> כל סוג מטרה</li><li>Linear = רצועה צרה (מהיר), Non-Rep = כיסוי מלא (איטי יותר)</li></ul>',
   targets:'<b>מה עושה הלשונית:</b> מטריצת זיהוי מקיפה — כל מטרה מקבלת ציון 0-100.<ul><li>הציון משקלל: מספר נקודות על המטרה, הבדל גובה מהקרקע, טווח, וגודל כתם הלייזר</li><li><b>מעל 60 = סביר</b>, 30-60 = גבולי, <b>מתחת ל-30 = בעייתי</b></li><li>גרף הרדאר מציג השוואה ויזואלית בין שני גבהים</li><li>ממצאי מחקר אמיתיים מופיעים בצד</li></ul>',
   weather:'<b>מה עושה הלשונית:</b> מראה איך תנאי מזג אוויר משפיעים על ביצועי הלייזר.<ul><li><b>1535nm יתרון במדבר</b> — פחות רגיש לאבק מ-905nm, אין ספיגת מים בסביבה יבשה</li><li>הגרף השמאלי: טווח לכל תנאי. הגרף הימני: שקיפות לפי מרחק (Beer-Lambert)</li><li><b>ערפל בינוני</b> מקצר טווח ב-50%+, גשם כבד דומה לערפל קל</li></ul>',
@@ -490,38 +545,72 @@ function upRange(){
 
   var keys=Object.keys(TGT);
   var spd=8;
-  // Calculate DRI for each target
-  var driData=keys.map(function(k){return P.dri(TGT[k],pi,spd,'nonrep',30,wk);});
+  var isNight = (wk === 'fog' || false); // TODO: add night toggle
 
-  // Chart: 3 grouped bars (D/R/I) + laser range as thin line
-  while(CH.range.data.datasets.length>3)CH.range.data.datasets.pop();
-  if(CH.range.data.datasets.length<3){
-    CH.range.data.datasets=[];
-    CH.range.data.datasets.push({label:'Detection \u05D2\u05D9\u05DC\u05D5\u05D9',data:[],backgroundColor:'#2ecc7199',borderColor:'#2ecc71',borderWidth:2,borderRadius:5});
-    CH.range.data.datasets.push({label:'Recognition \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2',data:[],backgroundColor:'#f39c1299',borderColor:'#f39c12',borderWidth:2,borderRadius:5});
-    CH.range.data.datasets.push({label:'Identification \u05D4\u05DB\u05E8\u05D4',data:[],backgroundColor:'#e74c3c99',borderColor:'#e74c3c',borderWidth:2,borderRadius:5});
-  }
-  CH.range.data.datasets[0].data=driData.map(function(d){return d.det;});
-  CH.range.data.datasets[1].data=driData.map(function(d){return d.rec;});
-  CH.range.data.datasets[2].data=driData.map(function(d){return d.id;});
-  CH.range.options.plugins.legend={display:true,position:'bottom',labels:{font:{size:9}}};
-  CH.range.options.scales.x.max=Math.max(250,Math.max.apply(null,driData.map(function(d){return d.det;}))*1.2);
-  CH.range.options.scales.x.title.text='\u05D2\u05D5\u05D1\u05D4 \u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 (\u05DE\')';
+  // Calculate all three DRI modes
+  var lidarDRI = keys.map(function(k){return P.dri(TGT[k],pi,spd,'nonrep',30,wk);});
+  var camDRI = keys.map(function(k){return P.camDRIAlt(TGT[k]);});
+  var combDRI = keys.map(function(k){return P.combinedDRI(TGT[k],pi,spd,'nonrep',30,wk,false);});
+  var nightDRI = keys.map(function(k){return P.combinedDRI(TGT[k],pi,spd,'nonrep',30,wk,true);});
+
+  // Chart: show Detection altitude for each mode
+  while(CH.range.data.datasets.length > 4) CH.range.data.datasets.pop();
+  while(CH.range.data.datasets.length < 4) CH.range.data.datasets.push({data:[]});
+
+  CH.range.data.datasets[0].label = '\u05D9\u05D5\u05DD: \u05DE\u05E9\u05D5\u05DC\u05D1 (LiDAR+Camera)';
+  CH.range.data.datasets[0].data = combDRI.map(function(d){return d.det;});
+  CH.range.data.datasets[0].backgroundColor = '#2ecc7199';
+  CH.range.data.datasets[0].borderColor = '#2ecc71';
+  CH.range.data.datasets[0].borderWidth = 2;
+  CH.range.data.datasets[0].borderRadius = 5;
+
+  CH.range.data.datasets[1].label = '\u05DC\u05D9\u05DC\u05D4: LiDAR \u05D1\u05DC\u05D1\u05D3';
+  CH.range.data.datasets[1].data = nightDRI.map(function(d){return d.det;});
+  CH.range.data.datasets[1].backgroundColor = '#9b59b699';
+  CH.range.data.datasets[1].borderColor = '#9b59b6';
+  CH.range.data.datasets[1].borderWidth = 2;
+  CH.range.data.datasets[1].borderRadius = 5;
+
+  CH.range.data.datasets[2].label = '\u05DE\u05E6\u05DC\u05DE\u05D4 \u05D1\u05DC\u05D1\u05D3';
+  CH.range.data.datasets[2].data = camDRI.map(function(d){return d.det;});
+  CH.range.data.datasets[2].backgroundColor = '#3498db44';
+  CH.range.data.datasets[2].borderColor = '#3498db';
+  CH.range.data.datasets[2].borderWidth = 1;
+  CH.range.data.datasets[2].borderRadius = 5;
+
+  CH.range.data.datasets[3].label = 'LiDAR \u05D1\u05DC\u05D1\u05D3';
+  CH.range.data.datasets[3].data = lidarDRI.map(function(d){return d.det;});
+  CH.range.data.datasets[3].backgroundColor = '#00b4d844';
+  CH.range.data.datasets[3].borderColor = '#00b4d8';
+  CH.range.data.datasets[3].borderWidth = 1;
+  CH.range.data.datasets[3].borderRadius = 5;
+
+  CH.range.options.plugins.legend = {display:true,position:'bottom',labels:{font:{size:9}}};
+  var maxVal = Math.max.apply(null, combDRI.map(function(d){return d.det;}));
+  CH.range.options.scales.x.max = Math.min(500, Math.max(250, maxVal * 1.2));
+  CH.range.options.scales.x.title.text = '\u05D2\u05D5\u05D1\u05D4 \u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 \u05DC\u05D2\u05D9\u05DC\u05D5\u05D9 (\u05DE\')';
   CH.range.update();
 
-  // KPIs: show DRI for selected altitude
-  var box=clr('kpi-range');
-  box.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:12px';
-  var labs=['\u05E8\u05DB\u05D1','\u05D0\u05D3\u05DD','\u05D7\u05E4\u05E5 \u05D7\u05E9\u05D5\u05D3','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
-  driData.forEach(function(d,i){
-    // Show which DRI level is achievable at current altitude
+  // KPIs: show combined DRI with day/night
+  var box = clr('kpi-range');
+  box.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:12px';
+  var labs = ['\u05E8\u05DB\u05D1','\u05D0\u05D3\u05DD','\u05D7\u05E4\u05E5 \u05D7\u05E9\u05D5\u05D3','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
+  combDRI.forEach(function(d, i) {
+    var lidarOnly = nightDRI[i];
     var level, clr2;
-    if(alt<=d.id){level='ID';clr2='kpi-g';}
-    else if(alt<=d.rec){level='REC';clr2='kpi-o';}
-    else if(alt<=d.det){level='DET';clr2='kpi-b';}
-    else{level='\u2717';clr2='kpi-r';}
-    var detail='D:'+d.det+' R:'+d.rec+' I:'+d.id+' \u05DE\'';
-    box.appendChild(mkKpi(level,'',labs[i],detail,clr2));
+    // Check day combined
+    if (alt <= d.id) {level='ID \u05D9\u05D5\u05DD'; clr2='kpi-g';}
+    else if (alt <= d.rec) {level='REC \u05D9\u05D5\u05DD'; clr2='kpi-o';}
+    else if (alt <= d.det) {level='DET \u05D9\u05D5\u05DD'; clr2='kpi-b';}
+    else {level='\u2717 \u05D9\u05D5\u05DD'; clr2='kpi-r';}
+    // Night level
+    var nightLvl;
+    if (alt <= lidarOnly.id) nightLvl='ID';
+    else if (alt <= lidarOnly.rec) nightLvl='REC';
+    else if (alt <= lidarOnly.det) nightLvl='DET';
+    else nightLvl='\u2717';
+    var detail = '\u05DC\u05D9\u05DC\u05D4: ' + nightLvl + ' | D:' + d.det + ' R:' + d.rec + ' I:' + d.id;
+    box.appendChild(mkKpi(level, '', labs[i], detail, clr2));
   });
 
   // Altitude insight
@@ -532,11 +621,13 @@ function upRange(){
   var va=P.vAcc(alt);
 
   ins.appendChild(el('div',{cls:'ct',txt:'\u{1F4CA} \u05DE\u05E9\u05DE\u05E2\u05D5\u05EA \u05D2\u05D5\u05D1\u05D4 '+alt+' \u05DE\' \u05E2\u05DC \u05D4\u05D6\u05D9\u05D4\u05D5\u05D9'}));
-  var g=el('div',{cls:'g4',stl:'margin:10px 0'});
+  var g=el('div',{stl:'display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:10px 0'});
   g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA (8 \u05DE'/\u05E9, NR)",'\u{1F522}',d>=25?'kpi-g':d>=12?'kpi-o':'kpi-r'));
   g.appendChild(mkKpi(fp.toFixed(1),"\u05E1\"\u05DE","\u05DB\u05EA\u05DD \u05DC\u05D9\u05D9\u05D6\u05E8",'\u{1F522}','kpi-b'));
   g.appendChild(mkKpi(th.toFixed(1),"\u05E1\"\u05DE","\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF (1\u03C3)",'\u{1F522}','kpi-b'));
   g.appendChild(mkKpi(va.toFixed(1),"\u05E1\"\u05DE","\u05D3\u05D9\u05D5\u05E7 \u05D0\u05E0\u05DB\u05D9 RMSE",'\u{1F4DA}','kpi-b'));
+  var camGsd = P.camGSD(alt) * 100; // cm
+  g.appendChild(mkKpi(camGsd.toFixed(1), "\u05E1\"\u05DE", "GSD \u05DE\u05E6\u05DC\u05DE\u05D4", '\u{1F4CB}', 'kpi-b'));
   ins.appendChild(g);
 
   // Verdict by altitude
