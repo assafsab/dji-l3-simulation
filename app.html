@@ -346,21 +346,34 @@ var P={
       var th=this.thick(h); // cloud thickness in cm
       var va=this.vAcc(h); // vertical accuracy in cm
 
-      // Detection: spacing <= maxDim AND (height > 2σ thick OR ≥2 pts)
-      var pts=this.pts(t,this.dens(pi,spd,h,scan,ovl));
-      var heightOK_det = tgtH_cm > 0.1 ? (tgtH_cm > th*2) : false;
-      var densOK_det = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md*0.5) : (pts >= 2);
-      if((sp<=maxDim || fp_m<=maxDim) && (heightOK_det || densOK_det)) res.det=h;
+      // === CONSERVATIVE DRI RULES ===
+      // RULE: MUST have >=1 expected point on target for ANY detection level
+      var curD=this.dens(pi,spd,h,scan,ovl);
+      var pts=curD*t.a;
+      var hasPoint=pts>=2; // CONSERVATIVE: need >=2 points for reliable detection
+      var heightOK2=tgtH_cm>0.1?(tgtH_cm>th*2):false;
+      var heightOK3=tgtH_cm>0.1?(tgtH_cm>th*3):false;
+      var heightOK5=tgtH_cm>0.1?(tgtH_cm>va*5):false;
+      var isDep=t.hg<0; // depression target (tracks)
 
-      // Recognition: spacing <= maxDim/3 AND height > 3σ
-      var heightOK_rec = tgtH_cm > 0.1 ? (tgtH_cm > th*3) : false;
-      var densOK_rec = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md) : (pts >= 5);
-      if(sp<=maxDim/3 && fp_m<=minDim && (heightOK_rec || densOK_rec)) res.rec=h;
+      // Detection: >=1pt AND spacing<=maxDim AND (height>2σ OR >=2pts)
+      // Depression targets: BOTH height AND density required
+      var detPts=isDep?(curD>=(t.md||25)*0.5):(pts>=2);
+      var detSize=(sp<=maxDim||fp_m<=maxDim);
+      var detOK=isDep?(hasPoint&&detSize&&heightOK2&&detPts):(hasPoint&&detSize&&(heightOK2||detPts));
+      if(detOK)res.det=h;
 
-      // Identification: spacing <= maxDim/6 AND height > 5σ AND accuracy OK
-      var heightOK_id = tgtH_cm > 0.1 ? (tgtH_cm > va*5) : false;
-      var densOK_id = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md*2) : (pts >= 15);
-      if(sp<=maxDim/6 && fp_m<=minDim/2 && (heightOK_id || densOK_id)) res.id=h;
+      // Recognition: >=3pts AND spacing<=dim/3 AND footprint<=minDim AND height>3σ
+      var recPts=isDep?(curD>=(t.md||25)):(pts>=5);
+      var recOK=(pts>=3)&&(sp<=maxDim/3)&&(fp_m<=minDim)&&(heightOK3||(!isDep&&recPts));
+      if(isDep)recOK=recOK&&heightOK3&&recPts;
+      if(recOK)res.rec=h;
+
+      // Identification: >=8pts AND spacing<=dim/6 AND footprint<=minDim/2 AND height>5σ
+      var idPts=isDep?(curD>=(t.md||25)*2):(pts>=15);
+      var idOK=(pts>=8)&&(sp<=maxDim/6)&&(fp_m<=minDim/2)&&(heightOK5||(!isDep&&idPts));
+      if(isDep)idOK=idOK&&heightOK5&&idPts;
+      if(idOK)res.id=h;
     }
     return res;
   }
