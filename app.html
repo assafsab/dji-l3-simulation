@@ -122,7 +122,7 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
         </div></div>
     </div>
     <div class="card">
-      <div class="ct">טווח גילוי לפי סוג מטרה <span class="tag" style="background:var(--green)">🔢</span></div>
+      <div class="ct">DRI — גובה מקסימלי לגילוי / זיהוי סוג / הכרה <span class="tag" style="background:var(--green)">🔢</span></div>
       <div class="cc"><canvas id="chRange"></canvas></div>
     </div>
   </div>
@@ -323,6 +323,46 @@ var P={
     var td=Math.min(t.w,t.l)*100;
     var ss=fp<td?10:Math.max(0,10*(td/fp));
     return Math.min(100,Math.round(ps+hs+rs+ss));
+  },
+  // ══════ DRI MODEL ══════
+  // Adapted Johnson Criteria for LiDAR point clouds:
+  // Detection: point_spacing <= target_max_dim (1 resolution element across)
+  //   + height anomaly > 2σ cloud_thickness OR min 2 points on target
+  // Recognition: point_spacing <= target_max_dim/3 (3 elements across)
+  //   + height anomaly > 3σ
+  // Identification: point_spacing <= target_max_dim/6 (6 elements across)
+  //   + height anomaly > 5σ (resolve shape details)
+  // Returns {det: max_alt, rec: max_alt, id: max_alt, laser: max_range}
+  dri:function(t,pi,spd,scan,ovl,wk){
+    var laserR=this.maxR(t.rf,pi,wk);
+    var maxDim=Math.max(t.w,t.l);
+    var minDim=Math.min(t.w,t.l);
+    var tgtH_cm=Math.abs(t.hg)*100;
+    var res={det:10,rec:10,id:10,laser:Math.round(laserR)};
+
+    for(var h=10;h<=Math.min(500,laserR);h+=1){
+      var sp=this.sp(this.dens(pi,spd,h,scan,ovl)); // point spacing in m
+      var fp_m=this.fp(h); // footprint diameter in m
+      var th=this.thick(h); // cloud thickness in cm
+      var va=this.vAcc(h); // vertical accuracy in cm
+
+      // Detection: spacing <= maxDim AND (height > 2σ thick OR ≥2 pts)
+      var pts=this.pts(t,this.dens(pi,spd,h,scan,ovl));
+      var heightOK_det = tgtH_cm > 0.1 ? (tgtH_cm > th*2) : false;
+      var densOK_det = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md*0.5) : (pts >= 2);
+      if((sp<=maxDim || fp_m<=maxDim) && (heightOK_det || densOK_det)) res.det=h;
+
+      // Recognition: spacing <= maxDim/3 AND height > 3σ
+      var heightOK_rec = tgtH_cm > 0.1 ? (tgtH_cm > th*3) : false;
+      var densOK_rec = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md) : (pts >= 5);
+      if(sp<=maxDim/3 && fp_m<=minDim && (heightOK_rec || densOK_rec)) res.rec=h;
+
+      // Identification: spacing <= maxDim/6 AND height > 5σ AND accuracy OK
+      var heightOK_id = tgtH_cm > 0.1 ? (tgtH_cm > va*5) : false;
+      var densOK_id = t.md ? (this.dens(pi,spd,h,scan,ovl) >= t.md*2) : (pts >= 15);
+      if(sp<=maxDim/6 && fp_m<=minDim/2 && (heightOK_id || densOK_id)) res.id=h;
+    }
+    return res;
   }
 };
 
@@ -341,7 +381,7 @@ function mkRow(cells){var tr=el('tr');cells.forEach(function(c){var td=el('td');
 // HELP TEXTS
 // ════════════════════════════════════════
 var HELPS={
-  range:'<b>מה עושה הלשונית:</b> מחשבת את טווח הגילוי המקסימלי של הלייזר לכל סוג מטרה.<ul><li>בחר <b>תדר פולסים</b> — נמוך יותר = טווח ארוך יותר (אנרגיה לפולס גבוהה יותר)</li><li>בחר <b>מזג אוויר</b> — ערפל/גשם מקצרים טווח באופן אקספוננציאלי</li><li>כוונן <b>גובה</b> (10-200 מ\') — גובה נמוך = צפיפות גבוהה ופירוט טוב יותר</li><li>הגרף מראה את הטווח <b>האלכסוני</b> של הלייזר (לא את הטווח הקרקעי)</li></ul>',
+  range:'<b>\u05DE\u05D4 \u05D4\u05DE\u05E2\u05E8\u05DB\u05EA \u05EA\u05D6\u05D4\u05D4 \u05D1\u05E9\u05D1\u05D9\u05DC\u05D9?</b> \u05D4\u05D2\u05E8\u05E3 \u05DE\u05E8\u05D0\u05D4 \u05DC\u05DB\u05DC \u05DE\u05D8\u05E8\u05D4 \u05D0\u05EA \u05D4\u05D2\u05D5\u05D1\u05D4 \u05D4\u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 \u05DC\u05E9\u05DC\u05D5\u05E9 \u05E8\u05DE\u05D5\u05EA:<ul><li><b style=\"color:#2ecc71\">Detection (\u05D2\u05D9\u05DC\u05D5\u05D9)</b> \u2014 \"\u05DE\u05E9\u05D4\u05D5 \u05E9\u05DD\" \u2014 \u05D4\u05D7\u05D9\u05D9\u05E9\u05DF \u05E8\u05D5\u05D0\u05D4 \u05D7\u05E8\u05D9\u05D2\u05D4</li><li><b style=\"color:#f39c12\">Recognition (\u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2)</b> \u2014 \"\u05D6\u05D4 \u05D1\u05D2\u05D5\u05D3\u05DC \u05E9\u05DC \u05D0\u05D3\u05DD/\u05E8\u05DB\u05D1\" \u2014 \u05DE\u05E1\u05E4\u05D9\u05E7 \u05E0\u05E7\u05D5\u05D3\u05D5\u05EA \u05DC\u05D4\u05D1\u05D7\u05D9\u05DF \u05E6\u05D5\u05E8\u05D4</li><li><b style=\"color:#e74c3c\">Identification (\u05D4\u05DB\u05E8\u05D4)</b> \u2014 \"\u05D6\u05D4 \u05D2\'\u05D9\u05E4 / \u05D0\u05D3\u05DD \u05E2\u05DD \u05EA\u05D9\u05E7\" \u2014 \u05E4\u05D9\u05E8\u05D5\u05D8 \u05D2\u05D1\u05D5\u05D4</li><li>\u05D4-KPI \u05DC\u05DE\u05D8\u05D4 \u05DE\u05E8\u05D0\u05D4 \u05D0\u05D9\u05D6\u05D5 \u05E8\u05DE\u05D4 <b>\u05D0\u05E4\u05E9\u05E8\u05D9\u05EA \u05D1\u05D2\u05D5\u05D1\u05D4 \u05D4\u05E0\u05D1\u05D7\u05E8</b></li></ul>',
   density:'<b>מה עושה הלשונית:</b> מחשבת כמה נקודות LiDAR יפגעו בכל מ"ר של קרקע.<ul><li><b>מהירות נמוכה + גובה נמוך = צפיפות מקסימלית</b></li><li>הגרף מראה את הצפיפות לכל גובה — קווים מקווקווים הם סף הזיהוי למטרות שונות</li><li>הטבלה מראה אם הצפיפות הנוכחית <b>מספיקה לזיהוי</b> כל סוג מטרה</li><li>Linear = רצועה צרה (מהיר), Non-Rep = כיסוי מלא (איטי יותר)</li></ul>',
   targets:'<b>מה עושה הלשונית:</b> מטריצת זיהוי מקיפה — כל מטרה מקבלת ציון 0-100.<ul><li>הציון משקלל: מספר נקודות על המטרה, הבדל גובה מהקרקע, טווח, וגודל כתם הלייזר</li><li><b>מעל 60 = סביר</b>, 30-60 = גבולי, <b>מתחת ל-30 = בעייתי</b></li><li>גרף הרדאר מציג השוואה ויזואלית בין שני גבהים</li><li>ממצאי מחקר אמיתיים מופיעים בצד</li></ul>',
   weather:'<b>מה עושה הלשונית:</b> מראה איך תנאי מזג אוויר משפיעים על ביצועי הלייזר.<ul><li><b>1535nm יתרון במדבר</b> — פחות רגיש לאבק מ-905nm, אין ספיגת מים בסביבה יבשה</li><li>הגרף השמאלי: טווח לכל תנאי. הגרף הימני: שקיפות לפי מרחק (Beer-Lambert)</li><li><b>ערפל בינוני</b> מקצר טווח ב-50%+, גשם כבד דומה לערפל קל</li></ul>',
@@ -436,23 +476,39 @@ function upRange(){
   document.getElementById('v-alt').textContent=alt+" \u05DE'";
 
   var keys=Object.keys(TGT);
-  var ranges=keys.map(function(k){return Math.round(P.maxR(TGT[k].rf,pi,wk));});
-  CH.range.data.datasets[0].data=ranges;
-  CH.range.options.scales.x.max=Math.max(2200,Math.max.apply(null,ranges)*1.1);
+  var spd=8;
+  // Calculate DRI for each target
+  var driData=keys.map(function(k){return P.dri(TGT[k],pi,spd,'nonrep',30,wk);});
+
+  // Chart: 3 grouped bars (D/R/I) + laser range as thin line
+  while(CH.range.data.datasets.length>3)CH.range.data.datasets.pop();
+  if(CH.range.data.datasets.length<3){
+    CH.range.data.datasets=[];
+    CH.range.data.datasets.push({label:'Detection \u05D2\u05D9\u05DC\u05D5\u05D9',data:[],backgroundColor:'#2ecc7199',borderColor:'#2ecc71',borderWidth:2,borderRadius:5});
+    CH.range.data.datasets.push({label:'Recognition \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2',data:[],backgroundColor:'#f39c1299',borderColor:'#f39c12',borderWidth:2,borderRadius:5});
+    CH.range.data.datasets.push({label:'Identification \u05D4\u05DB\u05E8\u05D4',data:[],backgroundColor:'#e74c3c99',borderColor:'#e74c3c',borderWidth:2,borderRadius:5});
+  }
+  CH.range.data.datasets[0].data=driData.map(function(d){return d.det;});
+  CH.range.data.datasets[1].data=driData.map(function(d){return d.rec;});
+  CH.range.data.datasets[2].data=driData.map(function(d){return d.id;});
+  CH.range.options.plugins.legend={display:true,position:'bottom',labels:{font:{size:9}}};
+  CH.range.options.scales.x.max=Math.max(250,Math.max.apply(null,driData.map(function(d){return d.det;}))*1.2);
+  CH.range.options.scales.x.title.text='\u05D2\u05D5\u05D1\u05D4 \u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 (\u05DE\')';
   CH.range.update();
 
+  // KPIs: show DRI for selected altitude
   var box=clr('kpi-range');
   box.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:12px';
-  var labs=['\u05D8\u05D5\u05D5\u05D7 \u05E8\u05DB\u05D1','\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD','\u05D8\u05D5\u05D5\u05D7 \u05D7\u05E4\u05E5','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
-  ranges.forEach(function(r,i){
-    var ok=r>alt;
-    if(i===3){ // tracks - show density verdict, not range
-      var dd=P.dens(pi,8,alt,'nonrep',30);
-      var trackOk=dd>=25;
-      box.appendChild(mkKpi(trackOk?'\u2713':'\u2717','',labs[i]+' ('+Math.round(dd)+' \u05E0\u05E7\'/\u05DE"\u05E8)','\u26A0\uFE0F',trackOk?'kpi-g':dd>=12?'kpi-o':'kpi-r'));
-    } else {
-      box.appendChild(mkKpi(r,"\u05DE'",labs[i],'\u{1F522}',ok?'kpi-g':'kpi-r'));
-    }
+  var labs=['\u05E8\u05DB\u05D1','\u05D0\u05D3\u05DD','\u05D7\u05E4\u05E5 \u05D7\u05E9\u05D5\u05D3','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
+  driData.forEach(function(d,i){
+    // Show which DRI level is achievable at current altitude
+    var level, clr2;
+    if(alt<=d.id){level='ID';clr2='kpi-g';}
+    else if(alt<=d.rec){level='REC';clr2='kpi-o';}
+    else if(alt<=d.det){level='DET';clr2='kpi-b';}
+    else{level='\u2717';clr2='kpi-r';}
+    var detail='D:'+d.det+' R:'+d.rec+' I:'+d.id+' \u05DE\'';
+    box.appendChild(mkKpi(level,'',labs[i],detail,clr2));
   });
 
   // Altitude insight
