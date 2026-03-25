@@ -156,7 +156,7 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
   </div>
   <div class="g4" id="kpi-dens"></div>
   <div class="card"><div class="ct">סף זיהוי — האם הצפיפות מספיקה?</div>
-    <table class="mt"><thead><tr><th>מטרה</th><th>גודל</th><th>נקודות נדרשות</th><th>צפיפות נדרשת</th><th>צפיפות נוכחית</th><th>סטטוס</th></tr></thead>
+    <table class="mt"><thead><tr><th>מטרה</th><th>גודל</th><th>גובה DRI (מ')</th><th>צפיפות</th><th>מרווח</th><th>רמת זיהוי</th></tr></thead>
     <tbody id="tb-dthr"></tbody></table></div>
 </div>
 
@@ -168,7 +168,7 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
     <table class="mt"><thead><tr>
       <th rowspan="2">מטרה</th><th rowspan="2">רפלקט.</th><th rowspan="2">גודל</th><th rowspan="2">גובה מקרקע</th>
       <th colspan="3">50 מ'</th><th colspan="3">120 מ'</th><th rowspan="2">מקור / הערות</th>
-    </tr><tr><th>נק'</th><th>ציון</th><th>הערכה</th><th>נק'</th><th>ציון</th><th>הערכה</th>
+    </tr><tr><th>נק'</th><th>DRI</th><th>גבהים D/R/I</th><th>נק'</th><th>DRI</th><th>גבהים D/R/I</th>
     </tr></thead><tbody id="tb-mat"></tbody></table>
   </div>
   <div class="g2">
@@ -188,7 +188,7 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
       <div class="cc"><canvas id="chTrans"></canvas></div></div>
   </div>
   <div class="card"><div class="ct">טבלת ביצועים</div>
-    <table class="mt"><thead><tr><th>תנאי</th><th>ראות</th><th>alpha</th><th>500מ'</th><th>1ק"מ</th><th>רכב</th><th>אדם</th><th>השפעה</th></tr></thead>
+    <table class="mt"><thead><tr><th>תנאי</th><th>ראות</th><th>alpha</th><th>500מ'</th><th>1ק"מ</th><th>רכב DRI</th><th>אדם DRI</th><th>השפעה</th></tr></thead>
     <tbody id="tb-wx"></tbody></table></div>
 </div>
 
@@ -561,19 +561,22 @@ function upDens(){
   CH.dens.data.labels=alts;CH.dens.data.datasets[0].data=dA;CH.dens.data.datasets[1].data=pT;CH.dens.data.datasets[2].data=tT;CH.dens.data.datasets[3].data=vT;CH.dens.update();
 
   var tb=clr('tb-dthr');
-  var rows=[
-    {n:'\u{1F697} \u05E8\u05DB\u05D1',s:'4.5x2 \u05DE\'',req:.6},
-    {n:'\u{1F6B6} \u05D0\u05D3\u05DD',s:'0.5x0.5 \u05DE\'',req:12},
-    {n:'\u{1F392} \u05D7\u05E4\u05E5',s:'0.4x0.4 \u05DE\'',req:18.75},
-    {n:'\u{1F463} \u05E2\u05E7\u05D1\u05D5\u05EA',s:'0.1x0.3 \u05DE\'',req:25},
-    {n:'\u{1F4A3} \u05DE\u05D8\u05E2\u05DF',s:'0.3x0.3 \u05DE\'',req:22.2}
-  ];
-  rows.forEach(function(r){
-    var ok=d>=r.req;var half=d>=r.req*.5;
-    tb.appendChild(mkRow([r.n,r.s,
-      {txt:r.req.toFixed(1)+' \u05E0\u05E7\'/\u05DE"\u05E8',dir:'ltr'},
+  // DRI thresholds per target at current settings
+  Object.keys(TGT).forEach(function(k){
+    var t=TGT[k];
+    var dr=P.dri(t,pi,spd,scan,ovl,'clear');
+    var level, cls2;
+    if(alt<=dr.id){level='\u2705 ID (\u05D4\u05DB\u05E8\u05D4)';cls2='dh';}
+    else if(alt<=dr.rec){level='\u26A0\uFE0F REC (\u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2)';cls2='dm';}
+    else if(alt<=dr.det){level='\u{1F535} DET (\u05D2\u05D9\u05DC\u05D5\u05D9 \u05D1\u05DC\u05D1\u05D3)';cls2='dm';}
+    else{level='\u274C \u05DC\u05D0 \u05E0\u05D9\u05EA\u05DF';cls2='dl';}
+    tb.appendChild(mkRow([
+      t.n,
+      {txt:t.w+'\u00D7'+t.l+' \u05DE\'',dir:'ltr'},
+      {txt:'D:'+dr.det+' R:'+dr.rec+' I:'+dr.id+' \u05DE\'',dir:'ltr'},
       {txt:d.toFixed(1)+' \u05E0\u05E7\'/\u05DE"\u05E8',dir:'ltr'},
-      {txt:ok?'\u2705 \u05DE\u05E1\u05E4\u05D9\u05E7':half?'\u26A0\uFE0F \u05D2\u05D1\u05D5\u05DC\u05D9':'\u274C \u05DC\u05D0 \u05DE\u05E1\u05E4\u05D9\u05E7',cls:ok?'dh':half?'dm':'dl'}
+      {txt:Math.round(P.sp(d)*100)+' \u05E1"\u05DE',dir:'ltr'},
+      {txt:level,cls:cls2}
     ]));
   });
 }
@@ -589,21 +592,34 @@ function upMat(){
 
   Object.keys(TGT).forEach(function(k){
     var t=TGT[k];
-    var d50=P.dens(0,8,50,'nonrep',30),d120=P.dens(0,8,120,'nonrep',30);
+    var dr=P.dri(t,0,8,'nonrep',30,'clear');
+    var d50=P.dens(0,8,50,'nonrep',30);
+    var d120=P.dens(0,8,120,'nonrep',30);
     var p50=P.pts(t,d50),p120=P.pts(t,d120);
-    var sc50=P.score(t,50,0,8,'nonrep',30,'clear');
-    var sc120=P.score(t,120,0,8,'nonrep',30,'clear');
-    s50.push(sc50);s120.push(sc120);s200.push(P.score(t,200,0,8,'nonrep',30,'clear'));
 
-    var c50=sc50>=60?'dh':sc50>=30?'dm':'dl';
-    var c120=sc120>=60?'dh':sc120>=30?'dm':'dl';
-    var t50=sc50>=60?'\u05D2\u05D1\u05D5\u05D4\u05D4':sc50>=30?'\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA':'\u05E0\u05DE\u05D5\u05DB\u05D4';
-    var t120=sc120>=60?'\u05D2\u05D1\u05D5\u05D4\u05D4':sc120>=30?'\u05D1\u05D9\u05E0\u05D5\u05E0\u05D9\u05EA':'\u05E0\u05DE\u05D5\u05DB\u05D4';
+    // DRI level at 50m
+    var lv50,c50;
+    if(50<=dr.id){lv50='ID';c50='dh';}
+    else if(50<=dr.rec){lv50='REC';c50='dm';}
+    else if(50<=dr.det){lv50='DET';c50='dh';}
+    else{lv50='\u2717';c50='dl';}
+
+    // DRI level at 120m
+    var lv120,c120;
+    if(120<=dr.id){lv120='ID';c120='dh';}
+    else if(120<=dr.rec){lv120='REC';c120='dm';}
+    else if(120<=dr.det){lv120='DET';c120='dh';}
+    else{lv120='\u2717';c120='dl';}
+
+    s50.push(50<=dr.det?100*(50<=dr.id?1:50<=dr.rec?0.6:0.3):0);
+    s120.push(120<=dr.det?100*(120<=dr.id?1:120<=dr.rec?0.6:0.3):0);
+    s200.push(200<=dr.det?100*(200<=dr.id?1:200<=dr.rec?0.6:0.3):0);
+
     var hS=t.hg<0?Math.abs(t.hg*100)+' \u05E1"\u05DE \u05E9\u05E7\u05E2':t.hg<1?(t.hg*100).toFixed(0)+' \u05E1"\u05DE':t.hg.toFixed(1)+' \u05DE\'';
 
-    tb.appendChild(mkRow([t.n,{txt:(t.rf*100)+'%',dir:'ltr'},{txt:t.w+'x'+t.l,dir:'ltr'},hS,
-      {txt:p50.toFixed(1),dir:'ltr'},{txt:sc50.toString(),cls:c50},{txt:t50,cls:c50},
-      {txt:p120.toFixed(1),dir:'ltr'},{txt:sc120.toString(),cls:c120},{txt:t120,cls:c120},
+    tb.appendChild(mkRow([t.n,{txt:(t.rf*100)+'%',dir:'ltr'},{txt:t.w+'\u00D7'+t.l,dir:'ltr'},hS,
+      {txt:p50.toFixed(1),dir:'ltr'},{txt:lv50,cls:c50},{txt:'D:'+dr.det+' R:'+dr.rec+' I:'+dr.id,cls:c50},
+      {txt:p120.toFixed(1),dir:'ltr'},{txt:lv120,cls:c120},{txt:'D:'+dr.det+' R:'+dr.rec+' I:'+dr.id,cls:c120},
       {txt:notes[k]||'',stl:'font-size:.72em;text-align:right'}
     ]));
   });
@@ -626,9 +642,19 @@ function upMat(){
 }
 
 function upWx(){
-  var vR=[],pR=[],oR=[];
-  Object.keys(WX).forEach(function(wk){vR.push(Math.round(P.maxR(.55,0,wk)));pR.push(Math.round(P.maxR(.25,0,wk)));oR.push(Math.round(P.maxR(.30,0,wk)));});
-  CH.wxR.data.datasets[0].data=vR;CH.wxR.data.datasets[1].data=pR;CH.wxR.data.datasets[2].data=oR;CH.wxR.update();
+  var vDRI=[],pDRI=[];
+  Object.keys(WX).forEach(function(wk){
+    vDRI.push(P.dri(TGT.vehicle,0,8,'nonrep',30,wk));
+    pDRI.push(P.dri(TGT.person,0,8,'nonrep',30,wk));
+  });
+  CH.wxR.data.datasets[0].label='\u05E8\u05DB\u05D1 Detection';
+  CH.wxR.data.datasets[1].label='\u05D0\u05D3\u05DD Detection';
+  CH.wxR.data.datasets[2].label='\u05E8\u05DB\u05D1 Recognition';
+  CH.wxR.data.datasets[0].data=vDRI.map(function(d){return d.det;});
+  CH.wxR.data.datasets[1].data=pDRI.map(function(d){return d.det;});
+  CH.wxR.data.datasets[2].data=vDRI.map(function(d){return d.rec;});
+  CH.wxR.options.scales.y.title.text='\u05D2\u05D5\u05D1\u05D4 \u05DE\u05E7\u05E1\u05D9\u05DE\u05DC\u05D9 (\u05DE\')';
+  CH.wxR.update();
 
   var ds=[];for(var d=0;d<=2000;d+=50)ds.push(d);
   var clrs=['#3498db','#2ecc71','#f1c40f','#e67e22','#e74c3c','#1abc9c','#9b59b6','#95a5a6','#e91e63'];
@@ -643,7 +669,8 @@ function upWx(){
     tb.appendChild(mkRow([w.n,{txt:w.v+'',dir:'ltr'},{txt:w.a+'',dir:'ltr'},
       {txt:(P.trans(500,wk)*100).toFixed(1)+'%',dir:'ltr'},
       {txt:(P.trans(1000,wk)*100).toFixed(1)+'%',dir:'ltr'},
-      {txt:vR[i]+' \u05DE\'',dir:'ltr'},{txt:pR[i]+' \u05DE\'',dir:'ltr'},
+      {txt:'D:'+vDRI[i].det+' R:'+vDRI[i].rec+' \u05DE\'',dir:'ltr'},
+      {txt:'D:'+pDRI[i].det+' R:'+pDRI[i].rec+' \u05DE\'',dir:'ltr'},
       {txt:imp,cls:ic}]));i++;});
 }
 
@@ -665,7 +692,8 @@ var SC={
     b:function(){var d=P.dens(0,5,40,'nonrep',50);var th=P.thick(40);
       var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
       g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,'kpi-g'));
-      g.appendChild(mkKpi(Math.round(P.maxR(.25,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD",null,'kpi-g'));
+      var drPsearch=P.dri(TGT.person,0,5,'nonrep',50,'clear');
+      g.appendChild(mkKpi(drPsearch.det,"\u05DE'","DET \u05D0\u05D3\u05DD",null,'kpi-g'));
       g.appendChild(mkKpi(th.toFixed(1),"\u05E1\"\u05DE","\u05E2\u05D5\u05D1\u05D9 \u05E2\u05E0\u05DF",null,'kpi-b'));
       g.appendChild(mkKpi(Math.round(P.sw(40)),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-o'));
       f.appendChild(g);f.appendChild(el('div',{cls:'vrd vg',txt:'\u2705 \u05D6\u05D9\u05D4\u05D5\u05D9 \u05D0\u05D3\u05DD \u05D5\u05D7\u05E4\u05E6\u05D9\u05DD \u05D0\u05DE\u05D9\u05DF. \u05E2\u05E7\u05D1\u05D5\u05EA \u05D1\u05E7\u05E8\u05E7\u05E2 \u05E8\u05DB\u05D4 \u05D1\u05DC\u05D1\u05D3.'}));
@@ -674,8 +702,10 @@ var SC={
     b:function(){var d=P.dens(0,8,60,'nonrep',30);
       var f=document.createDocumentFragment();var g=el('div',{cls:'g4',stl:'margin:10px 0'});
       g.appendChild(mkKpi(Math.round(d),"\u05E0\u05E7'/\u05DE\"\u05E8","\u05E6\u05E4\u05D9\u05E4\u05D5\u05EA",null,d>=25?'kpi-g':'kpi-o'));
-      g.appendChild(mkKpi(Math.round(P.maxR(.55,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05E8\u05DB\u05D1",null,'kpi-g'));
-      g.appendChild(mkKpi(Math.round(P.maxR(.25,0,'clear')),"\u05DE'","\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D3\u05DD",null,'kpi-g'));
+      var drV=P.dri(TGT.vehicle,0,8,'nonrep',30,'clear');
+      var drP=P.dri(TGT.person,0,8,'nonrep',30,'clear');
+      g.appendChild(mkKpi(drV.det,"\u05DE'","DET \u05E8\u05DB\u05D1",null,'kpi-g'));
+      g.appendChild(mkKpi(drP.det,"\u05DE'","DET \u05D0\u05D3\u05DD",null,'kpi-g'));
       g.appendChild(mkKpi(Math.round(P.sw(60)),"\u05DE'","\u05E8\u05E6\u05D5\u05E2\u05D4",null,'kpi-b'));
       f.appendChild(g);f.appendChild(el('div',{cls:'vrd '+(d>=12?'vg':'vp'),txt:d>=25?'\u2705 \u05E8\u05DB\u05D1+\u05D0\u05D3\u05DD+\u05D7\u05E4\u05E6\u05D9\u05DD. \u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05E8\u05E7 \u05D1\u05E7\u05E8\u05E7\u05E2 \u05E8\u05DB\u05D4.':'\u26A0\uFE0F \u05E8\u05DB\u05D1+\u05D0\u05D3\u05DD. \u05D7\u05E4\u05E6\u05D9\u05DD \u05E7\u05D8\u05E0\u05D9\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9.'}));
       return f;}},
