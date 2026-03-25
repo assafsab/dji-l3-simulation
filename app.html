@@ -103,6 +103,14 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
 <!-- TAB: RANGE -->
 <div id="t-range" class="tc on">
   <div class="help" id="help-range"></div>
+<div class="card" id="bottom-line" style="border:2px solid var(--blue);background:linear-gradient(135deg,#1e3044,#0f1923)">
+  <div class="ct" style="font-size:1.2em">🎯 שורה תחתונה — האם המערכת תעשה את העבודה?</div>
+  <div id="bl-grid"></div>
+  <details style="margin-top:12px">
+    <summary>📊 פירוט טכני מלא</summary>
+    <div id="bl-detail" style="margin-top:10px;font-size:.8em;color:var(--txt2)"></div>
+  </details>
+</div>
   <div class="g2">
     <div class="card">
       <div class="ct">פרמטרי סימולציה</div>
@@ -358,29 +366,29 @@ var P={
       // RULE: MUST have >=1 expected point on target for ANY detection level
       var curD=this.dens(pi,spd,h,scan,ovl);
       var pts=curD*t.a;
-      var hasPoint=pts>=2; // CONSERVATIVE: need >=2 points for reliable detection
-      var heightOK2=tgtH_cm>0.1?(tgtH_cm>th*2):false;
+      var hasPoint=pts>=3; // Literature: Waymo <=5 is "hard", 3 is minimum reliable
+      var heightOK3det=tgtH_cm>0.1?(tgtH_cm>th*3):false;
       var heightOK3=tgtH_cm>0.1?(tgtH_cm>th*3):false;
-      var heightOK5=tgtH_cm>0.1?(tgtH_cm>va*5):false;
+      var heightOK4=tgtH_cm>0.1?(tgtH_cm>va*4):false;
       var isDep=t.hg<0; // depression target (tracks)
 
       // Detection: >=1pt AND spacing<=maxDim AND (height>2σ OR >=2pts)
       // Depression targets: BOTH height AND density required
       var detPts=isDep?(curD>=(t.md||25)*0.5):(pts>=2);
       var detSize=(sp<=maxDim||fp_m<=maxDim);
-      var detOK=isDep?(hasPoint&&detSize&&heightOK2&&detPts):(hasPoint&&detSize&&(heightOK2||detPts));
+      var detOK=isDep?(hasPoint&&detSize&&heightOK3det&&detPts):(hasPoint&&detSize&&(heightOK3det||detPts));
       if(detOK)res.det=h;
 
       // Recognition: >=3pts AND spacing<=dim/3 AND footprint<=minDim AND height>3σ
       var recPts=isDep?(curD>=(t.md||25)):(pts>=5);
-      var recOK=(pts>=3)&&(sp<=maxDim/3)&&(fp_m<=minDim)&&(heightOK3||(!isDep&&recPts));
+      var recOK=(pts>=6)&&(sp<=maxDim/3)&&(fp_m<=minDim)&&(heightOK3||(!isDep&&recPts));
       if(isDep)recOK=recOK&&heightOK3&&recPts;
       if(recOK)res.rec=h;
 
       // Identification: >=8pts AND spacing<=dim/6 AND footprint<=minDim/2 AND height>5σ
       var idPts=isDep?(curD>=(t.md||25)*2):(pts>=15);
-      var idOK=(pts>=8)&&(sp<=maxDim/6)&&(fp_m<=minDim/2)&&(heightOK5||(!isDep&&idPts));
-      if(isDep)idOK=idOK&&heightOK5&&idPts;
+      var idOK=(pts>=10)&&(sp<=maxDim/6)&&(fp_m<=minDim/2)&&(heightOK4||(!isDep&&idPts));
+      if(isDep)idOK=idOK&&heightOK4&&idPts;
       if(idOK)res.id=h;
     }
     return res;
@@ -488,6 +496,42 @@ var P={
     res.rec = Math.round(res.rec * 0.7);
     res.id = Math.round(res.id * 0.7);
     return res;
+  },
+  // SWIR DRI (InGaAs 640x512, 15μm, configurable lens)
+  mastSwirDRI: function(t, mastHeight, focalLength_mm) {
+    var fl = focalLength_mm || 150;
+    var pixelPitch = 0.000015; // 15μm
+    var critDim = t.hg >= 1.0 ? t.hg : Math.max(t.w, t.l);
+    var res = {det:10, rec:10, id:10};
+    for (var R = 10; R <= 20000; R += 10) {
+      var gsd = pixelPitch * R / (fl / 1000);
+      var pxOnTarget = critDim / gsd;
+      if (pxOnTarget >= 1.5) res.det = R;
+      if (pxOnTarget >= 6) res.rec = R;
+      if (pxOnTarget >= 12) res.id = R;
+    }
+    // 0.65 realism — SWIR good in haze, night with starlight
+    res.det = Math.round(res.det * 0.65);
+    res.rec = Math.round(res.rec * 0.65);
+    res.id = Math.round(res.id * 0.65);
+    return res;
+  },
+  // LPR — License Plate Recognition
+  // Israeli plate: 520x110mm. Needs >=130 pixels across plate for reliable OCR
+  lprRange: function(focalLength_mm, sensorPx, sensorWidth_mm) {
+    var fl = focalLength_mm || 100; // mm
+    var px = sensorPx || 2592; // 5MP
+    var sw = sensorWidth_mm || 8.45; // 1/1.8"
+    var pixelPitch = sw / px / 1000; // meters
+    var plateWidth = 0.52; // meters (Israeli standard)
+    // Need 130 pixels on plate
+    var maxRange = plateWidth * (fl/1000) / (130 * pixelPitch);
+    return {
+      reliable: Math.round(maxRange * 0.7), // with realism
+      max: Math.round(maxRange),
+      plateWidth_m: plateWidth,
+      pxNeeded: 130
+    };
   }
 };
 
@@ -614,9 +658,10 @@ function upRange(){
     // MAST MODE: show horizontal range DRI
     var mastCam = keys.map(function(k){return P.mastCamDRI(TGT[k], alt);});
     var mastThermal = keys.map(function(k){return P.mastThermalDRI(TGT[k]);});
+    var mastSwir = keys.map(function(k){return P.mastSwirDRI(TGT[k], alt);});
 
-    while(CH.range.data.datasets.length > 3) CH.range.data.datasets.pop();
-    while(CH.range.data.datasets.length < 3) CH.range.data.datasets.push({data:[]});
+    while(CH.range.data.datasets.length > 4) CH.range.data.datasets.pop();
+    while(CH.range.data.datasets.length < 4) CH.range.data.datasets.push({data:[]});
 
     CH.range.data.datasets[0].label = 'PTZ Camera Detection';
     CH.range.data.datasets[0].data = mastCam.map(function(d){return d.det;});
@@ -639,6 +684,14 @@ function upRange(){
     CH.range.data.datasets[2].borderWidth = 2;
     CH.range.data.datasets[2].borderRadius = 5;
 
+    CH.range.data.datasets[3] = CH.range.data.datasets[3] || {data:[]};
+    CH.range.data.datasets[3].label = 'SWIR Detection';
+    CH.range.data.datasets[3].data = mastSwir.map(function(d){return d.det;});
+    CH.range.data.datasets[3].backgroundColor = '#1abc9c99';
+    CH.range.data.datasets[3].borderColor = '#1abc9c';
+    CH.range.data.datasets[3].borderWidth = 2;
+    CH.range.data.datasets[3].borderRadius = 5;
+
     CH.range.options.plugins.legend = {display:true,position:'bottom',labels:{font:{size:9}}};
     var maxMast = Math.max.apply(null, mastCam.map(function(d){return d.det;}));
     CH.range.options.scales.x.max = Math.max(2000, maxMast * 1.1);
@@ -651,14 +704,17 @@ function upRange(){
     var labs = ['\u05E8\u05DB\u05D1','\u05D0\u05D3\u05DD','\u05D7\u05E4\u05E5','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
     mastCam.forEach(function(d, i) {
       var th = mastThermal[i];
-      var detail = 'Cam D:'+d.det+' R:'+d.rec+' I:'+d.id+' | Therm D:'+th.det;
+      var sw = mastSwir[i];
+      var detail = 'Cam D:'+d.det+' R:'+d.rec+' | Therm D:'+th.det+' | SWIR D:'+sw.det;
       box.appendChild(mkKpi(d.det, "\u05DE'", labs[i] + ' (PTZ Det)', detail, 'kpi-b'));
     });
 
     // Altitude insight for mast = range summary
     var ins = clr('alt-insight');
     ins.appendChild(el('div',{cls:'ct',txt:'\u{1F4E1} \u05E1\u05D9\u05DB\u05D5\u05DD \u05EA\u05D5\u05E8\u05DF \u05D1\u05D2\u05D5\u05D1\u05D4 '+alt+' \u05DE\' \u2014 PTZ 150mm + \u05EA\u05E8\u05DE\u05D9 50mm'}));
-    ins.appendChild(el('div',{cls:'vrd vp',txt:'\u26A0\uFE0F \u05D4\u05E2\u05E8\u05DB\u05D9\u05DD \u05DE\u05D1\u05D5\u05E1\u05E1\u05D9 PTZ \u05D2\u05E0\u05E8\u05D9 (4K 150mm) + \u05EA\u05E8\u05DE\u05D9 (640\u00D7480 50mm). \u05E9\u05E0\u05D4 \u05E4\u05E8\u05DE\u05D8\u05E8\u05D9\u05DD \u05D1\u05DC\u05E9\u05D5\u05E0\u05D9\u05EA "\u05E2\u05E8\u05D9\u05DB\u05EA \u05DE\u05E4\u05E8\u05D8".'}));
+    var lpr = P.lprRange(100, 2592, 8.45);
+    ins.appendChild(el('div',{cls:'vrd vp',txt:'\u{1F4F7} PTZ 4K 150mm | \u{1F321}\uFE0F \u05EA\u05E8\u05DE\u05D9 640\u00D7480 50mm | \u{1F30C} SWIR 640\u00D7512 150mm | LPR: '+lpr.reliable+'\u05DE\' (\u05D0\u05DE\u05D9\u05DF) / '+lpr.max+'\u05DE\' (\u05DE\u05E7\u05E1)'}));
+    upBottomLine();
     return; // exit — don't run drone logic
   }
 
@@ -753,6 +809,82 @@ function upRange(){
   else if(alt<=100){msg='\u{1F7E1} \u05D2\u05D5\u05D1\u05D4 \u05E1\u05D9\u05D5\u05E8: \u05E8\u05DB\u05D1 \u05D5\u05D0\u05D3\u05DD \u2014 \u05DB\u05DF. \u05D7\u05E4\u05E6\u05D9\u05DD \u05E7\u05D8\u05E0\u05D9\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9. \u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05DC\u05D0 \u05D9\u05E1\u05E4\u05D9\u05E7.';cls='vp';}
   else{msg='\u{1F534} \u05D2\u05D5\u05D1\u05D4 \u05DE\u05D9\u05E4\u05D5\u05D9: \u05E8\u05DB\u05D1 \u2014 \u05DB\u05DF. \u05D0\u05D3\u05DD \u2014 \u05D2\u05D1\u05D5\u05DC\u05D9. \u05D7\u05E4\u05E6\u05D9\u05DD+\u05E2\u05E7\u05D1\u05D5\u05EA \u2014 \u05DC\u05D0 \u05DE\u05EA\u05D0\u05E4\u05E9\u05E8. \u05DE\u05EA\u05D0\u05D9\u05DD \u05DC\u05DE\u05D9\u05E4\u05D5\u05D9 \u05D1\u05DC\u05D1\u05D3.';cls='vb';}
   ins.appendChild(el('div',{cls:'vrd '+cls,txt:msg}));
+  upBottomLine();
+}
+
+function upBottomLine() {
+  var pi = +document.getElementById('s-prr').value;
+  var wk = document.getElementById('s-wx').value;
+  var alt = +document.getElementById('s-alt').value;
+  var isNight = false; // future: add toggle
+
+  var grid = clr('bl-grid');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:10px';
+
+  var detail = clr('bl-detail');
+
+  if (PLATFORM === 'mast') {
+    // Mast mode bottom line
+    var questions = [
+      {icon:'\u{1F697}',q:'\u05D2\u05D9\u05DC\u05D5\u05D9 \u05E8\u05DB\u05D1',k:'vehicle'},
+      {icon:'\u{1F6B6}',q:'\u05D2\u05D9\u05DC\u05D5\u05D9 \u05D0\u05D3\u05DD',k:'person'},
+      {icon:'\u{1F392}',q:'\u05D2\u05D9\u05DC\u05D5\u05D9 \u05D7\u05E4\u05E5',k:'object'},
+      {icon:'\u{1F463}',q:'\u05D2\u05D9\u05DC\u05D5\u05D9 \u05E2\u05E7\u05D1\u05D5\u05EA',k:'tracks'},
+      {icon:'\u{1F4A3}',q:'\u05D2\u05D9\u05DC\u05D5\u05D9 \u05DE\u05D8\u05E2\u05DF',k:'ied'}
+    ];
+    questions.forEach(function(item) {
+      var cam = P.mastCamDRI(TGT[item.k], alt);
+      var therm = P.mastThermalDRI(TGT[item.k]);
+      var bestDet = Math.max(cam.det, therm.det);
+      var bestRec = Math.max(cam.rec, therm.rec);
+
+      var card = el('div', {stl:'background:var(--bg2);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--brd)'});
+      card.appendChild(el('div', {txt:item.icon, stl:'font-size:1.8em'}));
+      card.appendChild(el('div', {txt:item.q, stl:'font-size:.8em;color:var(--txt2);margin:4px 0'}));
+      card.appendChild(el('div', {txt:'\u2705 '+bestDet+' \u05DE\'', stl:'font-size:1.1em;font-weight:700;color:var(--green)'}));
+      card.appendChild(el('div', {txt:'\u05D6\u05D9\u05D4\u05D5\u05D9: '+bestRec+' \u05DE\'', stl:'font-size:.75em;color:var(--txt3)'}));
+      grid.appendChild(card);
+    });
+    return;
+  }
+
+  // Drone mode bottom line
+  var questions = [
+    {icon:'\u{1F697}',q:'\u05D0\u05D6\u05D4\u05D4 \u05E8\u05DB\u05D1?',k:'vehicle'},
+    {icon:'\u{1F6B6}',q:'\u05D0\u05D6\u05D4\u05D4 \u05D0\u05D3\u05DD?',k:'person'},
+    {icon:'\u{1F392}',q:'\u05D0\u05D6\u05D4\u05D4 \u05D7\u05E4\u05E5 \u05D7\u05E9\u05D5\u05D3?',k:'object'},
+    {icon:'\u{1F463}',q:'\u05D0\u05D6\u05D4\u05D4 \u05E2\u05E7\u05D1\u05D5\u05EA?',k:'tracks'},
+    {icon:'\u{1F4A3}',q:'\u05D0\u05D6\u05D4\u05D4 \u05DE\u05D8\u05E2\u05DF?',k:'ied'}
+  ];
+
+  questions.forEach(function(item) {
+    var t = TGT[item.k];
+    var comb = P.combinedDRI(t, pi, 8, 'nonrep', 30, wk, false);
+    var night = P.combinedDRI(t, pi, 8, 'nonrep', 30, wk, true);
+
+    // Determine answer at current altitude
+    var dayLevel, dayColor, dayText;
+    if (alt <= comb.id) {dayLevel = 'ID'; dayColor = 'var(--green)'; dayText = '\u2705 \u05DB\u05DF! \u05D4\u05DB\u05E8\u05D4 \u05DE\u05DC\u05D0\u05D4';}
+    else if (alt <= comb.rec) {dayLevel = 'REC'; dayColor = 'var(--green)'; dayText = '\u2705 \u05DB\u05DF! \u05D6\u05D9\u05D4\u05D5\u05D9 \u05E1\u05D5\u05D2';}
+    else if (alt <= comb.det) {dayLevel = 'DET'; dayColor = 'var(--orange)'; dayText = '\u26A0\uFE0F \u05D2\u05D9\u05DC\u05D5\u05D9 \u05D1\u05DC\u05D1\u05D3';}
+    else {dayLevel = '\u2717'; dayColor = 'var(--red)'; dayText = '\u274C \u05DC\u05D0 \u05D1\u05D2\u05D5\u05D1\u05D4 \u05D4\u05D6\u05D4';}
+
+    var nightLevel;
+    if (alt <= night.id) nightLevel = '\u{1F319}ID';
+    else if (alt <= night.rec) nightLevel = '\u{1F319}REC';
+    else if (alt <= night.det) nightLevel = '\u{1F319}DET';
+    else nightLevel = '\u{1F319}\u2717';
+
+    var card = el('div', {stl:'background:var(--bg2);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--brd)'});
+    card.appendChild(el('div', {txt:item.icon, stl:'font-size:1.8em'}));
+    card.appendChild(el('div', {txt:item.q, stl:'font-size:.85em;color:var(--txt2);margin:4px 0'}));
+    card.appendChild(el('div', {txt:dayText, stl:'font-size:.95em;font-weight:700;color:'+dayColor}));
+    card.appendChild(el('div', {txt:'\u05DC\u05D9\u05DC\u05D4: '+nightLevel, stl:'font-size:.7em;color:var(--txt3);margin-top:3px'}));
+    grid.appendChild(card);
+
+    // Detail row
+    detail.appendChild(el('div', {txt:item.icon+' '+TGT[item.k].n+': \u05D9\u05D5\u05DD D:'+comb.det+' R:'+comb.rec+' I:'+comb.id+' | \u05DC\u05D9\u05DC\u05D4 D:'+night.det+' R:'+night.rec+' I:'+night.id+' | \u05DE\u05E7\u05D5\u05E8: '+comb.source_det, stl:'padding:3px 0;border-bottom:1px solid var(--brd)'}));
+  });
 }
 
 function upDens(){
