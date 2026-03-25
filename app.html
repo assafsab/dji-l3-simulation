@@ -91,6 +91,12 @@ details summary{cursor:pointer;color:var(--orange);font-weight:600;font-size:.85
   </div>
 </div>
 
+<div style="background:var(--bg2);padding:8px 28px;display:flex;align-items:center;gap:15px;border-bottom:1px solid var(--brd)">
+  <span style="color:var(--txt2);font-size:.82em;font-weight:600">פלטפורמה:</span>
+  <button class="pb on" id="plat-drone" onclick="setPlatform('drone')">🚁 רחפן (Nadir)</button>
+  <button class="pb" id="plat-mast" onclick="setPlatform('mast')">📡 תורן / מבנה (Oblique)</button>
+  <span id="plat-desc" style="color:var(--txt3);font-size:.75em;margin-right:15px">מסתכל למטה — DRI מבוסס גובה</span>
+</div>
 <div class="tabs" id="tabbar"></div>
 <div class="main">
 
@@ -248,6 +254,8 @@ var S = {
   r10:950, r80:2000
 };
 var S_DEF=JSON.parse(JSON.stringify(S));
+
+var PLATFORM = 'drone'; // 'drone' or 'mast'
 
 var TGT={
   vehicle:{n:"\u{1F697} \u05E8\u05DB\u05D1",rf:.55,w:2,l:4.5,h:1.5,a:9,mp:5,hg:1.5,c:'#3498db'},
@@ -431,6 +439,55 @@ var P={
       lidar: lidar,
       cam: cam
     };
+  },
+  // MAST MODE: Static sensor looking horizontally
+  // LiDAR on mast: not typical (L3 is airborne), but for comparison
+  // Main sensors on mast: Camera (EO), Thermal (IR), SWIR
+  // DRI for static camera looking horizontally uses standard Johnson
+  // Critical difference: see full silhouette (1.8m height for person, not 0.5m top-down)
+  mastCamDRI: function(t, mastHeight, focalLength_mm, sensorWidth_mm, sensorPx) {
+    // Default: generic PTZ camera - 4K (3840px), 1/1.8" sensor (7.1mm), variable zoom
+    var fl = focalLength_mm || 150; // mm
+    var sw = sensorWidth_mm || 7.1; // mm
+    var px = sensorPx || 3840;
+    var pixelPitch = sw / px / 1000; // meters
+    // Critical dimension: for person use HEIGHT (1.8m) since viewed from side
+    var critDim = Math.max(t.w, t.l, Math.abs(t.hg) > 0.5 ? Math.abs(t.hg) : t.l);
+    if (t.hg >= 1.0) critDim = t.hg; // standing target: use full height
+
+    var res = {det:10, rec:10, id:10};
+    for (var R = 10; R <= 5000; R += 5) {
+      var gsd = pixelPitch * R / (fl / 1000);
+      var pxOnTarget = critDim / gsd;
+      if (pxOnTarget >= 2) res.det = R;
+      if (pxOnTarget >= 8) res.rec = R;
+      if (pxOnTarget >= 12) res.id = R;
+    }
+    // Apply 0.6 realism factor
+    res.det = Math.round(res.det * 0.6);
+    res.rec = Math.round(res.rec * 0.6);
+    res.id = Math.round(res.id * 0.6);
+    return res;
+  },
+  // Thermal DRI for mast (generic uncooled LWIR)
+  mastThermalDRI: function(t) {
+    // Generic thermal: 640x480, 17μm pitch, 50mm lens
+    // NETD ~50mK, MRTD-based DRI
+    var fl = 50; // mm
+    var pixelPitch = 0.000017; // 17μm
+    var critDim = t.hg >= 1.0 ? t.hg : Math.max(t.w, t.l);
+    var res = {det:10, rec:10, id:10};
+    for (var R = 10; R <= 10000; R += 10) {
+      var gsd = pixelPitch * R / (fl / 1000);
+      var pxOnTarget = critDim / gsd;
+      if (pxOnTarget >= 1.5) res.det = R; // thermal has better contrast
+      if (pxOnTarget >= 6) res.rec = R;
+      if (pxOnTarget >= 10) res.id = R;
+    }
+    res.det = Math.round(res.det * 0.7); // thermal better contrast = higher factor
+    res.rec = Math.round(res.rec * 0.7);
+    res.id = Math.round(res.id * 0.7);
+    return res;
   }
 };
 
@@ -541,12 +598,71 @@ function upRange(){
   var wk=document.getElementById('s-wx').value;
   var alt=+document.getElementById('s-alt').value;
   document.getElementById('v-prr').textContent=S.prr_k[pi]+' kHz';
-  document.getElementById('v-alt').textContent=alt+" \u05DE'";
+
+  // Dynamic label based on platform
+  if (PLATFORM === 'mast') {
+    document.getElementById('v-alt').textContent = alt + ' \u05DE\' \u05D2\u05D5\u05D1\u05D4 \u05EA\u05D5\u05E8\u05DF';
+  } else {
+    document.getElementById('v-alt').textContent = alt + " \u05DE'";
+  }
 
   var keys=Object.keys(TGT);
   var spd=8;
   var isNight = (wk === 'fog' || false); // TODO: add night toggle
 
+  if (PLATFORM === 'mast') {
+    // MAST MODE: show horizontal range DRI
+    var mastCam = keys.map(function(k){return P.mastCamDRI(TGT[k], alt);});
+    var mastThermal = keys.map(function(k){return P.mastThermalDRI(TGT[k]);});
+
+    while(CH.range.data.datasets.length > 3) CH.range.data.datasets.pop();
+    while(CH.range.data.datasets.length < 3) CH.range.data.datasets.push({data:[]});
+
+    CH.range.data.datasets[0].label = 'PTZ Camera Detection';
+    CH.range.data.datasets[0].data = mastCam.map(function(d){return d.det;});
+    CH.range.data.datasets[0].backgroundColor = '#3498db99';
+    CH.range.data.datasets[0].borderColor = '#3498db';
+    CH.range.data.datasets[0].borderWidth = 2;
+    CH.range.data.datasets[0].borderRadius = 5;
+
+    CH.range.data.datasets[1].label = 'PTZ Camera Recognition';
+    CH.range.data.datasets[1].data = mastCam.map(function(d){return d.rec;});
+    CH.range.data.datasets[1].backgroundColor = '#f39c1299';
+    CH.range.data.datasets[1].borderColor = '#f39c12';
+    CH.range.data.datasets[1].borderWidth = 2;
+    CH.range.data.datasets[1].borderRadius = 5;
+
+    CH.range.data.datasets[2].label = 'Thermal Detection';
+    CH.range.data.datasets[2].data = mastThermal.map(function(d){return d.det;});
+    CH.range.data.datasets[2].backgroundColor = '#e74c3c99';
+    CH.range.data.datasets[2].borderColor = '#e74c3c';
+    CH.range.data.datasets[2].borderWidth = 2;
+    CH.range.data.datasets[2].borderRadius = 5;
+
+    CH.range.options.plugins.legend = {display:true,position:'bottom',labels:{font:{size:9}}};
+    var maxMast = Math.max.apply(null, mastCam.map(function(d){return d.det;}));
+    CH.range.options.scales.x.max = Math.max(2000, maxMast * 1.1);
+    CH.range.options.scales.x.title.text = '\u05D8\u05D5\u05D5\u05D7 \u05D0\u05D5\u05E4\u05E7\u05D9 (\u05DE\')';
+    CH.range.update();
+
+    // KPIs for mast
+    var box = clr('kpi-range');
+    box.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:12px';
+    var labs = ['\u05E8\u05DB\u05D1','\u05D0\u05D3\u05DD','\u05D7\u05E4\u05E5','\u05E2\u05E7\u05D1\u05D5\u05EA','\u05DE\u05D8\u05E2\u05DF'];
+    mastCam.forEach(function(d, i) {
+      var th = mastThermal[i];
+      var detail = 'Cam D:'+d.det+' R:'+d.rec+' I:'+d.id+' | Therm D:'+th.det;
+      box.appendChild(mkKpi(d.det, "\u05DE'", labs[i] + ' (PTZ Det)', detail, 'kpi-b'));
+    });
+
+    // Altitude insight for mast = range summary
+    var ins = clr('alt-insight');
+    ins.appendChild(el('div',{cls:'ct',txt:'\u{1F4E1} \u05E1\u05D9\u05DB\u05D5\u05DD \u05EA\u05D5\u05E8\u05DF \u05D1\u05D2\u05D5\u05D1\u05D4 '+alt+' \u05DE\' \u2014 PTZ 150mm + \u05EA\u05E8\u05DE\u05D9 50mm'}));
+    ins.appendChild(el('div',{cls:'vrd vp',txt:'\u26A0\uFE0F \u05D4\u05E2\u05E8\u05DB\u05D9\u05DD \u05DE\u05D1\u05D5\u05E1\u05E1\u05D9 PTZ \u05D2\u05E0\u05E8\u05D9 (4K 150mm) + \u05EA\u05E8\u05DE\u05D9 (640\u00D7480 50mm). \u05E9\u05E0\u05D4 \u05E4\u05E8\u05DE\u05D8\u05E8\u05D9\u05DD \u05D1\u05DC\u05E9\u05D5\u05E0\u05D9\u05EA "\u05E2\u05E8\u05D9\u05DB\u05EA \u05DE\u05E4\u05E8\u05D8".'}));
+    return; // exit — don't run drone logic
+  }
+
+  // DRONE MODE (existing code continues below)
   // Calculate all three DRI modes
   var lidarDRI = keys.map(function(k){return P.dri(TGT[k],pi,spd,'nonrep',30,wk);});
   var camDRI = keys.map(function(k){return P.camDRIAlt(TGT[k]);});
@@ -1009,6 +1125,28 @@ function setP(n,btn){
   var p={ultra:{p:0,w:'clear',a:15},low:{p:0,w:'clear',a:40},patrol:{p:0,w:'clear',a:60},high:{p:1,w:'clear',a:150}};
   var s=p[n];document.getElementById('s-prr').value=s.p;document.getElementById('s-wx').value=s.w;document.getElementById('s-alt').value=s.a;
   document.querySelectorAll('.pb').forEach(function(b){b.classList.remove('on');});if(btn)btn.classList.add('on');upRange();
+}
+
+function setPlatform(mode) {
+  PLATFORM = mode;
+  document.getElementById('plat-drone').className = 'pb' + (mode==='drone'?' on':'');
+  document.getElementById('plat-mast').className = 'pb' + (mode==='mast'?' on':'');
+  document.getElementById('plat-desc').textContent = mode==='drone'
+    ? '\u05DE\u05E1\u05EA\u05DB\u05DC \u05DC\u05DE\u05D8\u05D4 \u2014 DRI \u05DE\u05D1\u05D5\u05E1\u05E1 \u05D2\u05D5\u05D1\u05D4'
+    : '\u05DE\u05E1\u05EA\u05DB\u05DC \u05D4\u05E6\u05D9\u05D3\u05D4 \u2014 DRI \u05DE\u05D1\u05D5\u05E1\u05E1 \u05D8\u05D5\u05D5\u05D7 \u05D0\u05D5\u05E4\u05E7\u05D9';
+
+  // Update slider labels
+  var altLabel = mode==='drone' ? '\u05D2\u05D5\u05D1\u05D4 \u05D8\u05D9\u05E1\u05D4 (AGL)' : '\u05D2\u05D5\u05D1\u05D4 \u05EA\u05D5\u05E8\u05DF (\u05DE\')';
+  // Update range slider max
+  var altSlider = document.getElementById('s-alt');
+  if (mode === 'mast') {
+    altSlider.min = 5; altSlider.max = 30; altSlider.value = Math.min(+altSlider.value, 30);
+  } else {
+    altSlider.min = 10; altSlider.max = 200;
+  }
+
+  upRange();
+  upDens();
 }
 
 // ════════════════════════════════════════
